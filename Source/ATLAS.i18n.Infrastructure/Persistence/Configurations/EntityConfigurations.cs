@@ -1,75 +1,69 @@
-using ATLAS.i18n.Domain.Entities;
-using ATLAS.i18n.Domain.ValueObjects;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using ATLAS.i18n.Infrastructure.Persistence;
 
 namespace ATLAS.i18n.Infrastructure.Persistence.Configurations;
 
 // ─── Language ─────────────────────────────────────────────────────────────────
 
+/// <summary>
+/// EF Core configuration for <see cref="Language"/>.
+/// Maps the global language catalogue to the <c>i18n.Languages</c> table.
+/// </summary>
 public sealed class LanguageConfiguration : IEntityTypeConfiguration<Language>
 {
     public void Configure(EntityTypeBuilder<Language> builder)
     {
         builder.ToTable("Languages");
 
-        // PK is LanguageCode (value object wrapping string)
         builder.HasKey(l => l.Id);
-        builder.Property(l => l.Id)
-            .HasColumnName("Code")
-            .HasMaxLength(2)
-            .HasConversion(
-                v => v.Value,
-                v => LanguageCode.From(v))
-            .IsRequired();
+        builder.Property(l => l.Id).ValueGeneratedNever();
 
-        builder.Property(l => l.Name)
-            .HasMaxLength(100)
-            .IsRequired();
-
-        builder.Property(l => l.NativeName)
-            .HasMaxLength(100)
-            .IsRequired();
-
-        builder.Property(l => l.CultureTag)
+        // BCP-47 code is the unique business key (e.g. "es-ES")
+        builder.Property(l => l.Code)
             .HasMaxLength(10)
             .IsRequired();
 
+        builder.HasIndex(l => l.Code)
+            .IsUnique()
+            .HasDatabaseName("UX_Languages_Code");
+
+        builder.Property(l => l.Name).HasMaxLength(100).IsRequired();
+        builder.Property(l => l.NativeName).HasMaxLength(100).IsRequired();
         builder.Property(l => l.IsDefault).IsRequired();
+
+        // IsActive comes from MasterEntity<Guid> via IActivatable
         builder.Property(l => l.IsActive).IsRequired();
 
-        builder.Property(l => l.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
+        // Audit fields (IAuditable) — set by AuditSaveChangesInterceptor
+        builder.Property(l => l.CreatedAt).IsRequired();
+        builder.Property(l => l.CreatedBy).HasMaxLength(256).IsRequired();
+        builder.Property(l => l.UpdatedAt);
+        builder.Property(l => l.UpdatedBy).HasMaxLength(256);
 
-        builder.Property(l => l.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
-
-        // Indexes
+        // Partial index: quickly find the single default language
         builder.HasIndex(l => l.IsDefault)
             .HasFilter("\"IsDefault\" = true")
             .HasDatabaseName("IX_Languages_Default");
 
-        builder.HasIndex(l => l.IsActive)
-            .HasDatabaseName("IX_Languages_Active");
-
-        // Navigation — LocaleConfiguration (one-to-one, owned by Language aggregate)
+        // Navigation — owned LocaleConfiguration (one-to-one)
         builder.HasOne(l => l.LocaleConfiguration)
             .WithOne()
-            .HasForeignKey<LocaleConfiguration>("LanguageCode")
+            .HasForeignKey<LocaleConfiguration>("LanguageId")
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Navigation — CurrencyFormats (one-to-many, owned by Language aggregate)
+        // Navigation — owned CurrencyFormats (one-to-many)
         builder.HasMany(l => l.CurrencyFormats)
             .WithOne()
-            .HasForeignKey("LanguageCode")
+            .HasForeignKey("LanguageId")
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
 // ─── Translation ──────────────────────────────────────────────────────────────
 
+/// <summary>
+/// EF Core configuration for <see cref="Translation"/>.
+/// Maps translation entries to the <c>i18n.Translations</c> table.
+/// </summary>
 public sealed class TranslationConfiguration : IEntityTypeConfiguration<Translation>
 {
     public void Configure(EntityTypeBuilder<Translation> builder)
@@ -79,61 +73,59 @@ public sealed class TranslationConfiguration : IEntityTypeConfiguration<Translat
         builder.HasKey(t => t.Id);
         builder.Property(t => t.Id).ValueGeneratedNever();
 
+        // TranslationCode value object → stored as VARCHAR(9) (e.g. "ATLAS0001")
         builder.Property(t => t.Code)
             .HasColumnName("Code")
             .HasMaxLength(9)
             .HasConversion(
                 v => v.Value,
-                v => TranslationCode.From(v))
+                v => TranslationCode.From(v).Value)  // Result.Value safe — DB values are pre-validated
             .IsRequired();
 
+        // LanguageCode value object (SharedKernel) → stored as VARCHAR(10) (e.g. "es-ES")
         builder.Property(t => t.LanguageCode)
             .HasColumnName("LanguageCode")
-            .HasMaxLength(2)
+            .HasMaxLength(10)
             .HasConversion(
                 v => v.Value,
-                v => LanguageCode.From(v))
+                v => LanguageCode.Create(v).Value)
             .IsRequired();
 
-        builder.Property(t => t.Text)
-            .HasMaxLength(4000)
-            .IsRequired();
-
-        builder.Property(t => t.Context)
-            .HasMaxLength(500);
-
+        builder.Property(t => t.Text).HasMaxLength(4000).IsRequired();
+        builder.Property(t => t.Context).HasMaxLength(500);
         builder.Property(t => t.MaxLength);
         builder.Property(t => t.IsReviewed).IsRequired();
 
-        builder.Property(t => t.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
+        // Audit fields
+        builder.Property(t => t.CreatedAt).IsRequired();
+        builder.Property(t => t.CreatedBy).HasMaxLength(256).IsRequired();
+        builder.Property(t => t.UpdatedAt);
+        builder.Property(t => t.UpdatedBy).HasMaxLength(256);
 
-        builder.Property(t => t.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
-
-        // Composite unique index: Code + LanguageCode is the natural business key
+        // Composite unique index: (Code + LanguageCode) is the natural business key
         builder.HasIndex(t => new { t.Code, t.LanguageCode })
             .IsUnique()
             .HasDatabaseName("UX_Translations_Code_Language");
 
-        // Index for module queries: filter all CRM, PIM, etc. entries efficiently
-        // We store the module prefix in a computed column shadow property
+        // Index for module queries — EF LIKE 'CRM%'
         builder.HasIndex(t => t.LanguageCode)
             .HasDatabaseName("IX_Translations_LanguageCode");
 
-        // Foreign key to Language (soft reference — language must exist)
+        // Soft FK to Language (restrict delete — language can't be deleted if translations exist)
         builder.HasOne<Language>()
             .WithMany()
             .HasForeignKey(t => t.LanguageCode)
-            .HasPrincipalKey(l => l.Id)
+            .HasPrincipalKey(l => l.Code)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
 // ─── LocaleConfiguration ─────────────────────────────────────────────────────
 
+/// <summary>
+/// EF Core configuration for <see cref="LocaleConfiguration"/>.
+/// Maps locale formatting rules to the <c>i18n.LocaleConfigurations</c> table.
+/// </summary>
 public sealed class LocaleConfigurationConfiguration
     : IEntityTypeConfiguration<LocaleConfiguration>
 {
@@ -144,13 +136,18 @@ public sealed class LocaleConfigurationConfiguration
         builder.HasKey(lc => lc.Id);
         builder.Property(lc => lc.Id).ValueGeneratedNever();
 
+        // LanguageCode stored as VARCHAR — shadow FK to Language.Id
         builder.Property(lc => lc.LanguageCode)
             .HasColumnName("LanguageCode")
-            .HasMaxLength(2)
+            .HasMaxLength(10)
             .HasConversion(
                 v => v.Value,
-                v => LanguageCode.From(v))
+                v => LanguageCode.Create(v).Value)
             .IsRequired();
+
+        builder.HasIndex(lc => lc.LanguageCode)
+            .IsUnique()
+            .HasDatabaseName("UX_LocaleConfigurations_LanguageCode");
 
         builder.Property(lc => lc.DateFormat).HasMaxLength(50).IsRequired();
         builder.Property(lc => lc.ShortDateFormat).HasMaxLength(50).IsRequired();
@@ -158,7 +155,7 @@ public sealed class LocaleConfigurationConfiguration
         builder.Property(lc => lc.DateTimeFormat).HasMaxLength(100).IsRequired();
         builder.Property(lc => lc.FirstDayOfWeek).IsRequired();
 
-        // Store separator chars as single-character strings
+        // Store char separator as single-char string
         builder.Property(lc => lc.DecimalSeparator)
             .HasMaxLength(1)
             .HasConversion(c => c.ToString(), s => s[0])
@@ -172,22 +169,20 @@ public sealed class LocaleConfigurationConfiguration
         builder.Property(lc => lc.DecimalPlaces).IsRequired();
         builder.Property(lc => lc.CurrencyDecimalPlaces).IsRequired();
 
-        builder.Property(lc => lc.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
-
-        builder.Property(lc => lc.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("NOW()");
-
-        builder.HasIndex(lc => lc.LanguageCode)
-            .IsUnique()
-            .HasDatabaseName("UX_LocaleConfigurations_LanguageCode");
+        // Audit fields
+        builder.Property(lc => lc.CreatedAt).IsRequired();
+        builder.Property(lc => lc.CreatedBy).HasMaxLength(256).IsRequired();
+        builder.Property(lc => lc.UpdatedAt);
+        builder.Property(lc => lc.UpdatedBy).HasMaxLength(256);
     }
 }
 
 // ─── CurrencyFormat ───────────────────────────────────────────────────────────
 
+/// <summary>
+/// EF Core configuration for <see cref="CurrencyFormat"/>.
+/// Maps currency formatting rules to the <c>i18n.CurrencyFormats</c> table.
+/// </summary>
 public sealed class CurrencyFormatConfiguration : IEntityTypeConfiguration<CurrencyFormat>
 {
     public void Configure(EntityTypeBuilder<CurrencyFormat> builder)
@@ -199,10 +194,10 @@ public sealed class CurrencyFormatConfiguration : IEntityTypeConfiguration<Curre
 
         builder.Property(cf => cf.LanguageCode)
             .HasColumnName("LanguageCode")
-            .HasMaxLength(2)
+            .HasMaxLength(10)
             .HasConversion(
                 v => v.Value,
-                v => LanguageCode.From(v))
+                v => LanguageCode.Create(v).Value)
             .IsRequired();
 
         builder.Property(cf => cf.CurrencyCode).HasMaxLength(3).IsRequired();
@@ -224,16 +219,15 @@ public sealed class CurrencyFormatConfiguration : IEntityTypeConfiguration<Curre
         builder.Property(cf => cf.DecimalPlaces).IsRequired();
         builder.Property(cf => cf.NegativePattern).HasMaxLength(30).IsRequired();
 
-        // Composite unique index: one format per language+currency pair
+        // Composite unique index: one format per language + currency pair
         builder.HasIndex(cf => new { cf.LanguageCode, cf.CurrencyCode })
             .IsUnique()
             .HasDatabaseName("UX_CurrencyFormats_Language_Currency");
 
-        // FK to Language
-        builder.HasOne<Language>()
-            .WithMany()
-            .HasForeignKey(cf => cf.LanguageCode)
-            .HasPrincipalKey(l => l.Id)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Audit fields
+        builder.Property(cf => cf.CreatedAt).IsRequired();
+        builder.Property(cf => cf.CreatedBy).HasMaxLength(256).IsRequired();
+        builder.Property(cf => cf.UpdatedAt);
+        builder.Property(cf => cf.UpdatedBy).HasMaxLength(256);
     }
 }

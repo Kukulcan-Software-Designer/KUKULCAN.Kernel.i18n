@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
       <TargetFramework>net10.0</TargetFramework>
@@ -6,8 +6,8 @@
       <Nullable>enable</Nullable>
       <ImplicitUsings>enable</ImplicitUsings>
       <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-      <RootNamespace>ATLAS.i18n.API</RootNamespace>
-      <AssemblyName>ATLAS.i18n.API</AssemblyName>
+      <RootNamespace>ATLAS.i18n</RootNamespace>
+      <AssemblyName>ATLAS.i18n</AssemblyName>
       <!-- Generar paquete NuGet automáticamente -->
       <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
       <!-- Solo generar en Release -->
@@ -22,11 +22,11 @@
       <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
       <PackageReadmeFile>README.md</PackageReadmeFile>
       <Description>
-          ATLAS platform internationalization microservice. Provides:
+          **ATLAS** platform internationalization microservice. Provides:
 
-          - Translations: lookup by unique code (`MODULE + NNNN`) and language, with automatic fallback to English.
-          - Locale configuration: date and time formats, decimal and thousands separators.
-          - Currency formats: symbol, position, spacing, decimals, and negative pattern.
+          - **Translations**: lookup by unique code (`MODULE + NNNN`) and language, with automatic fallback to English.
+          - **Locale configuration**: date and time formats, decimal and thousands separators.
+          - **Currency formats**: symbol, position, spacing, decimals, and negative pattern.
       </Description>
       <PackageTags>atlas;erp;ddd;shared-kernel;database;efcore;infrastructure</PackageTags>
       <Copyright>Copyright © 2026 Potestaris Software</Copyright>
@@ -40,13 +40,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.*" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.*" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.*" />
-    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.*" />
-    <PackageReference Include="Serilog.Enrichers.Process" Version="3.*" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.*" />
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.*" />
   </ItemGroup>

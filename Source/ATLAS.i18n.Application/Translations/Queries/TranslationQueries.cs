@@ -1,26 +1,20 @@
-using ATLAS.i18n.Application.Common.DTOs;
-using ATLAS.i18n.Application.Common.Interfaces;
-using ATLAS.i18n.Domain.Exceptions;
-using ATLAS.i18n.Domain.Repositories;
-using ATLAS.i18n.Domain.Services;
-using ATLAS.i18n.Domain.ValueObjects;
 using FluentValidation;
-using MediatR;
+using ATLAS.i18n.Application.Translations.Queries;
 
 namespace ATLAS.i18n.Application.Translations.Queries;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET SINGLE TRANSLATION
+// GET SINGLE TRANSLATION  (hot path)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Retrieves the text for a specific translation code and language.
-/// Falls back to English automatically if the requested language is unavailable.
+/// Returns the translated text for a code + language combination, applying the
+/// BCP-47 fallback chain automatically (<c>es-ES → es → en</c>).
 /// </summary>
-/// <param name="Code">Translation code, e.g. "CRM0001".</param>
-/// <param name="LanguageCode">ISO 639-1 language code, e.g. "ES".</param>
+/// <param name="Code">Translation code, e.g. <c>"CRM0001"</c>.</param>
+/// <param name="LanguageCode">BCP-47 language tag, e.g. <c>"es-ES"</c>.</param>
 public record GetTranslationQuery(string Code, string LanguageCode)
-    : IRequest<TranslationLookupDto>;
+    : IRequest<Result<TranslationLookupDto>>;
 
 public sealed class GetTranslationQueryValidator : AbstractValidator<GetTranslationQuery>
 {
@@ -28,91 +22,90 @@ public sealed class GetTranslationQueryValidator : AbstractValidator<GetTranslat
     {
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Translation code is required.")
-            .Must(c =>
-            {
-                try { TranslationCode.From(c); return true; }
-                catch { return false; }
-            })
+            .Must(c => TranslationCode.From(c).IsSuccess)
             .WithMessage("Translation code must follow the format MODULE + 4 digits (e.g. CRM0001).");
 
         RuleFor(x => x.LanguageCode)
             .NotEmpty().WithMessage("Language code is required.")
-            .Length(2).WithMessage("Language code must be exactly 2 characters.")
-            .Matches("^[a-zA-Z]{2}$").WithMessage("Language code must contain only letters.");
+            .Must(lc => LanguageCode.Create(lc).IsSuccess)
+            .WithMessage("Language code must be a valid BCP-47 tag (e.g. es-ES, en-US).");
     }
 }
 
 public sealed class GetTranslationQueryHandler
-    : IRequestHandler<GetTranslationQuery, TranslationLookupDto>
+    : IRequestHandler<GetTranslationQuery, Result<TranslationLookupDto>>
 {
-    private readonly ITranslationRepository _repository;
-    private readonly ICacheService _cache;
+    private readonly ITranslationLookupService _lookupService;
+    private readonly ICacheService             _cache;
 
     public GetTranslationQueryHandler(
-        ITranslationRepository repository,
-        ICacheService cache)
+        ITranslationLookupService lookupService,
+        ICacheService             cache)
     {
-        _repository = repository;
-        _cache      = cache;
+        _lookupService = lookupService;
+        _cache         = cache;
     }
 
-    public async Task<TranslationLookupDto> Handle(
+    public async Task<Result<TranslationLookupDto>> Handle(
         GetTranslationQuery request,
-        CancellationToken cancellationToken)
+        CancellationToken   cancellationToken)
     {
-        var code = TranslationCode.From(request.Code);
-        var lang = LanguageCode.From(request.LanguageCode);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        var cacheKey = CacheKeys.Translation(code.Value, lang.Value);
-        var cached   = await _cache.GetAsync<TranslationLookupDto>(cacheKey, cancellationToken);
-        if (cached is not null)
-            return cached;
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
 
-        // 1. Try exact language
-        var translation = await _repository.FindAsync(code, lang, cancellationToken);
-        var isFallback  = false;
+        var code = codeResult.Value;
+        var lang = langResult.Value;
+        var key  = I18nCacheKeys.Translation(code.Value, lang.Value);
 
-        // 2. Fall back to English
-        if (translation is null && lang != LanguageCode.English)
-        {
-            translation = await _repository.FindAsync(code, LanguageCode.English, cancellationToken);
-            isFallback  = translation is not null;
-        }
+        // Use SharedKernel's GetOrCreate — handles cache-aside in one call
+        var dto = await _cache.GetOrCreateAsync<TranslationLookupDto?>(
+            key,
+            async ct =>
+            {
+                var resolved = await _lookupService.ResolveAsync(code, lang, ct);
+                if (resolved.IsFailure) return null;
 
-        if (translation is null)
-            throw new TranslationNotFoundException(code.Value, lang.Value);
+                var (text, actualLang, isFallback) = resolved.Value;
+                return new TranslationLookupDto(
+                    code.Value, lang.Value, text, isFallback, actualLang);
+            },
+            expiry: TimeSpan.FromHours(1),
+            cancellationToken: cancellationToken);
 
-        var dto = new TranslationLookupDto(
-            translation.Code.Value,
-            translation.LanguageCode.Value,
-            translation.Text,
-            isFallback);
-
-        await _cache.SetAsync(cacheKey, dto, TimeSpan.FromHours(1), cancellationToken);
+        if (dto is null)
+            return Error.NotFound(
+                "Translation.NotFound",
+                $"No translation found for '{code.Value}' in language '{lang.Value}'.");
 
         return dto;
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET TRANSLATIONS BY MODULE
+// GET MODULE STRING TABLE  (bulk / client-side caching)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Returns all translations for a given module and language as a flat dictionary.
-/// Useful for client-side caching — the client can download an entire module's
-/// strings in one call (e.g. all CRM strings for ES).
-/// Missing translations fall back to English individually.
+/// Returns all translations for a module and language as a flat dictionary.
+/// Missing individual translations are filled by the BCP-47 fallback chain.
 /// </summary>
-/// <param name="Module">Module prefix, e.g. "CRM", "PIM".</param>
-/// <param name="LanguageCode">ISO 639-1 language code, e.g. "ES".</param>
-public record GetTranslationsByModuleQuery(string Module, string LanguageCode)
-    : IRequest<TranslationMapDto>;
-
-public sealed class GetTranslationsByModuleQueryValidator
-    : AbstractValidator<GetTranslationsByModuleQuery>
+/// <param name="Module">Module prefix, e.g. <c>"CRM"</c>, <c>"PIM"</c>.</param>
+/// <param name="LanguageCode">BCP-47 language tag, e.g. <c>"es-ES"</c>.</param>
+public record GetModuleTranslationsQuery(string Module, string LanguageCode)
+    : IRequest<Result<TranslationMapDto>>,
+      ICacheableRequest
 {
-    public GetTranslationsByModuleQueryValidator()
+    public string    CacheKey      => I18nCacheKeys.ModuleTranslations(Module, LanguageCode);
+    public TimeSpan? CacheDuration => TimeSpan.FromHours(1);
+}
+
+public sealed class GetModuleTranslationsQueryValidator
+    : AbstractValidator<GetModuleTranslationsQuery>
+{
+    public GetModuleTranslationsQueryValidator()
     {
         RuleFor(x => x.Module)
             .NotEmpty()
@@ -122,167 +115,150 @@ public sealed class GetTranslationsByModuleQueryValidator
 
         RuleFor(x => x.LanguageCode)
             .NotEmpty()
-            .Length(2)
-            .Matches("^[a-zA-Z]{2}$");
+            .Must(lc => LanguageCode.Create(lc).IsSuccess)
+            .WithMessage("Language code must be a valid BCP-47 tag.");
     }
 }
 
-public sealed class GetTranslationsByModuleQueryHandler
-    : IRequestHandler<GetTranslationsByModuleQuery, TranslationMapDto>
+public sealed class GetModuleTranslationsQueryHandler
+    : IRequestHandler<GetModuleTranslationsQuery, Result<TranslationMapDto>>
 {
     private readonly ITranslationRepository _repository;
-    private readonly ICacheService _cache;
 
-    public GetTranslationsByModuleQueryHandler(
-        ITranslationRepository repository,
-        ICacheService cache)
+    public GetModuleTranslationsQueryHandler(ITranslationRepository repository)
+        => _repository = repository;
+
+    public async Task<Result<TranslationMapDto>> Handle(
+        GetModuleTranslationsQuery request,
+        CancellationToken          cancellationToken)
     {
-        _repository = repository;
-        _cache      = cache;
-    }
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
 
-    public async Task<TranslationMapDto> Handle(
-        GetTranslationsByModuleQuery request,
-        CancellationToken cancellationToken)
-    {
-        var lang      = LanguageCode.From(request.LanguageCode);
-        var module    = request.Module.ToUpperInvariant();
-        var cacheKey  = CacheKeys.TranslationsModule(module, lang.Value);
+        var lang   = langResult.Value;
+        var module = request.Module.ToUpperInvariant();
 
-        var cached = await _cache.GetAsync<TranslationMapDto>(cacheKey, cancellationToken);
-        if (cached is not null)
-            return cached;
-
-        // Load requested language + English (for fallback)
+        // Load requested language
         var requested = await _repository.GetByModuleAndLanguageAsync(module, lang, cancellationToken);
-        var fallbackNeeded = lang != LanguageCode.English;
-        var englishMap = fallbackNeeded
-            ? (await _repository.GetByModuleAndLanguageAsync(module, LanguageCode.English, cancellationToken))
-                .ToDictionary(t => t.Code.Value, t => t.Text)
-            : new Dictionary<string, string>();
+        var map       = requested.ToDictionary(t => t.Code.Value, t => t.Text);
 
-        // Merge: requested language wins; English fills gaps
-        var merged = requested.ToDictionary(t => t.Code.Value, t => t.Text);
-        foreach (var (key, value) in englishMap)
+        // Walk the fallback chain and fill gaps for any missing codes
+        foreach (var fallbackTag in lang.FallbackChain.Skip(1)) // skip the first (already loaded)
         {
-            if (!merged.ContainsKey(key))
-                merged[key] = value;
+            var fbLangResult = LanguageCode.Create(fallbackTag);
+            if (fbLangResult.IsFailure) continue;
+
+            var fallback = await _repository.GetByModuleAndLanguageAsync(
+                module, fbLangResult.Value, cancellationToken);
+
+            foreach (var t in fallback)
+            {
+                if (!map.ContainsKey(t.Code.Value))
+                    map[t.Code.Value] = t.Text;
+            }
         }
 
-        var dto = new TranslationMapDto(lang.Value, module, merged);
-
-        await _cache.SetAsync(cacheKey, dto, TimeSpan.FromHours(1), cancellationToken);
-
-        return dto;
+        return new TranslationMapDto(lang.Value, module, map);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET TRANSLATIONS PAGED (admin / backoffice)
+// GET TRANSLATIONS PAGED  (admin / backoffice)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Returns a paged list of translations. Intended for admin tooling.
+/// Returns a paged list of translations for admin tooling.
+/// Uses <see cref="PaginationRequest"/> from <c>Atlas.SharedKernel.Infrastructure</c>.
 /// </summary>
 public record GetTranslationsPagedQuery(
-    int PageNumber   = 1,
-    int PageSize     = 50,
-    string? Module   = null,
-    string? Language = null)
-    : IRequest<PagedResult<TranslationDto>>;
+    PaginationRequest Pagination,
+    string?           ModuleFilter   = null,
+    string?           LanguageFilter = null)
+    : IRequest<Result<PagedResult<TranslationDto>>>;
 
 public sealed class GetTranslationsPagedQueryValidator
     : AbstractValidator<GetTranslationsPagedQuery>
 {
     public GetTranslationsPagedQueryValidator()
     {
-        RuleFor(x => x.PageNumber).GreaterThanOrEqualTo(1);
-        RuleFor(x => x.PageSize).InclusiveBetween(1, 500);
-
-        When(x => x.Module is not null, () =>
-            RuleFor(x => x.Module!)
+        When(x => x.ModuleFilter is not null, () =>
+            RuleFor(x => x.ModuleFilter!)
                 .MinimumLength(TranslationCode.MinModuleLength)
                 .MaximumLength(TranslationCode.MaxModuleLength)
                 .Matches("^[a-zA-Z]+$"));
 
-        When(x => x.Language is not null, () =>
-            RuleFor(x => x.Language!)
-                .Length(2)
-                .Matches("^[a-zA-Z]{2}$"));
+        When(x => x.LanguageFilter is not null, () =>
+            RuleFor(x => x.LanguageFilter!)
+                .Must(lc => LanguageCode.Create(lc).IsSuccess)
+                .WithMessage("LanguageFilter must be a valid BCP-47 tag."));
     }
 }
 
 public sealed class GetTranslationsPagedQueryHandler
-    : IRequestHandler<GetTranslationsPagedQuery, PagedResult<TranslationDto>>
+    : IRequestHandler<GetTranslationsPagedQuery, Result<PagedResult<TranslationDto>>>
 {
     private readonly ITranslationRepository _repository;
 
     public GetTranslationsPagedQueryHandler(ITranslationRepository repository)
         => _repository = repository;
 
-    public async Task<PagedResult<TranslationDto>> Handle(
+    public async Task<Result<PagedResult<TranslationDto>>> Handle(
         GetTranslationsPagedQuery request,
-        CancellationToken cancellationToken)
+        CancellationToken         cancellationToken)
     {
         var (items, total) = await _repository.GetPagedAsync(
-            request.PageNumber,
-            request.PageSize,
-            request.Module?.ToUpperInvariant(),
-            request.Language?.ToUpperInvariant(),
+            request.Pagination.Page,
+            request.Pagination.PageSize,
+            request.ModuleFilter?.ToUpperInvariant(),
+            request.LanguageFilter?.ToLowerInvariant(),
             cancellationToken);
 
-        var dtos = items.Select(t => new TranslationDto(
-            t.Id,
-            t.Code.Value,
-            t.Code.Module,
-            t.LanguageCode.Value,
-            t.Text,
-            t.Context,
-            t.MaxLength,
-            t.IsReviewed,
-            t.CreatedAt,
-            t.UpdatedAt)).ToList();
+        var dtos = items.Select(MapToDto).ToList();
 
-        return new PagedResult<TranslationDto>(dtos, total, request.PageNumber, request.PageSize);
+        // Use SharedKernel's PagedResult.Create
+        return PagedResult<TranslationDto>.Create(dtos, total, request.Pagination);
     }
+
+    // ── GET VARIANTS ──────────────────────────────────────────────────────────
+
+    internal static TranslationDto MapToDto(Translation t) =>
+        new(t.Id, t.Code.Value, t.Code.Module, t.LanguageCode.Value,
+            t.Text, t.Context, t.MaxLength, t.IsReviewed,
+            t.CreatedAt, t.CreatedBy, t.UpdatedAt, t.UpdatedBy);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GET ALL VARIANTS FOR A CODE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Get all variants for a code ─────────────────────────────────────────────
 
-/// <summary>
-/// Returns all language variants for a single translation code.
-/// Useful in admin to see which languages are missing a translation.
-/// </summary>
 public record GetTranslationVariantsQuery(string Code)
-    : IRequest<IReadOnlyList<TranslationDto>>;
+    : IRequest<Result<IReadOnlyList<TranslationDto>>>;
 
 public sealed class GetTranslationVariantsQueryHandler
-    : IRequestHandler<GetTranslationVariantsQuery, IReadOnlyList<TranslationDto>>
+    : IRequestHandler<GetTranslationVariantsQuery, Result<IReadOnlyList<TranslationDto>>>
 {
     private readonly ITranslationRepository _repository;
 
     public GetTranslationVariantsQueryHandler(ITranslationRepository repository)
         => _repository = repository;
 
-    public async Task<IReadOnlyList<TranslationDto>> Handle(
+    public async Task<Result<IReadOnlyList<TranslationDto>>> Handle(
         GetTranslationVariantsQuery request,
-        CancellationToken cancellationToken)
+        CancellationToken           cancellationToken)
     {
-        var code  = TranslationCode.From(request.Code);
-        var items = await _repository.GetAllVariantsAsync(code, cancellationToken);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        return items.Select(t => new TranslationDto(
-            t.Id,
-            t.Code.Value,
-            t.Code.Module,
-            t.LanguageCode.Value,
-            t.Text,
-            t.Context,
-            t.MaxLength,
-            t.IsReviewed,
-            t.CreatedAt,
-            t.UpdatedAt)).ToList();
+        var items = await _repository.GetVariantsAsync(codeResult.Value, cancellationToken);
+        return items.Select(GetTranslationsPagedQueryHandler.MapToDto)
+                    .ToList()
+                    .AsReadOnly()
+                    .ToResult();
     }
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+file static class EnumerableResultExtensions
+{
+    internal static Result<IReadOnlyList<T>> ToResult<T>(this IReadOnlyList<T> list)
+        => Result<IReadOnlyList<T>>.Ok(list);
 }

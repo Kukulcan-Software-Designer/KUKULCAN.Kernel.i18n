@@ -1,147 +1,115 @@
-using ATLAS.i18n.Domain.Entities;
-using ATLAS.i18n.Domain.ValueObjects;
-
 namespace ATLAS.i18n.Domain.Repositories;
 
-/// <summary>
-/// Repository interface for <see cref="Language"/> aggregate.
-/// </summary>
-public interface ILanguageRepository
-{
-    /// <summary>Returns the language with all owned data, or null if not found.</summary>
-    Task<Language?> GetByCodeAsync(LanguageCode code, CancellationToken ct = default);
+// ─── Language ─────────────────────────────────────────────────────────────────
 
-    /// <summary>Returns all active languages.</summary>
+/// <summary>
+/// Write repository for <see cref="Language"/>.
+/// Extends <see cref="IRepository{T,TId}"/> from <c>Atlas.SharedKernel.Abstractions</c>,
+/// which provides <c>GetByIdAsync</c>, <c>ListAllAsync</c>, <c>AddAsync</c>,
+/// <c>Update</c>, and <c>ExistsAsync</c>.
+/// </summary>
+public interface ILanguageRepository : IRepository<Language, Guid>
+{
+    /// <summary>Returns the language with the given BCP-47 code, or <c>null</c>.</summary>
+    Task<Language?> GetByCodeAsync(string bcp47Code, CancellationToken ct = default);
+
+    /// <summary>Returns all active languages ordered by display name.</summary>
     Task<IReadOnlyList<Language>> GetAllActiveAsync(CancellationToken ct = default);
 
-    /// <summary>Returns all languages (including inactive).</summary>
-    Task<IReadOnlyList<Language>> GetAllAsync(CancellationToken ct = default);
-
-    /// <summary>Returns the configured default language (English by convention).</summary>
+    /// <summary>Returns the language currently marked as the platform default.</summary>
     Task<Language?> GetDefaultAsync(CancellationToken ct = default);
 
-    /// <summary>Returns true if the given code already exists in the database.</summary>
-    Task<bool> ExistsAsync(LanguageCode code, CancellationToken ct = default);
-
-    void Add(Language language);
-    void Update(Language language);
-    void Remove(Language language);
-
-    Task<int> SaveChangesAsync(CancellationToken ct = default);
+    /// <summary>Checks whether a language with the given BCP-47 code already exists.</summary>
+    Task<bool> ExistsByCodeAsync(string bcp47Code, CancellationToken ct = default);
 }
 
+// ─── Translation ──────────────────────────────────────────────────────────────
+
 /// <summary>
-/// Repository interface for <see cref="Translation"/> aggregate.
+/// Write repository for <see cref="Translation"/>.
+/// Extends <see cref="IRepository{T,TId}"/> with i18n-specific query methods.
 /// </summary>
-public interface ITranslationRepository
+public interface ITranslationRepository : IRepository<Translation, Guid>
 {
     /// <summary>
-    /// Finds a translation by its unique code and language.
-    /// Returns null if not found (callers should fall back to English).
+    /// Finds a single translation by its unique code and language.
+    /// Returns <c>null</c> when not found — callers must then walk the fallback chain.
     /// </summary>
     Task<Translation?> FindAsync(
         TranslationCode code,
-        LanguageCode languageCode,
+        LanguageCode    languageCode,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Finds a translation by code and language. If not found, falls back to the default
-    /// language (EN). Returns null only if the English fallback is also missing.
+    /// Returns all translations for a specific module (e.g. <c>"CRM"</c>) and language.
+    /// Used to build the full string table for a module in a single query.
     /// </summary>
-    Task<Translation?> FindWithFallbackAsync(
-        TranslationCode code,
-        LanguageCode requestedLanguage,
-        CancellationToken ct = default);
-
-    /// <summary>Returns all translations for a given language.</summary>
-    Task<IReadOnlyList<Translation>> GetByLanguageAsync(
-        LanguageCode languageCode,
-        CancellationToken ct = default);
-
-    /// <summary>Returns all translations for a specific module (e.g. "CRM") and language.</summary>
     Task<IReadOnlyList<Translation>> GetByModuleAndLanguageAsync(
-        string module,
-        LanguageCode languageCode,
+        string           module,
+        LanguageCode     languageCode,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Returns all language variants for a given code.
-    /// Useful to check which languages a particular string has been translated into.
+    /// Returns all language variants available for a given translation code.
+    /// Used in admin tooling to identify which languages are missing a translation.
     /// </summary>
-    Task<IReadOnlyList<Translation>> GetAllVariantsAsync(
+    Task<IReadOnlyList<Translation>> GetVariantsAsync(
         TranslationCode code,
         CancellationToken ct = default);
 
-    /// <summary>Returns all translations in bulk (for export / cache warming).</summary>
-    Task<IReadOnlyList<Translation>> GetAllAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Returns a paged list of translations, optionally filtered by module and/or language.
+    /// </summary>
+    Task<(IReadOnlyList<Translation> Items, long TotalCount)> GetPagedAsync(
+        int               pageNumber,
+        int               pageSize,
+        string?           moduleFilter   = null,
+        string?           languageFilter = null,
+        CancellationToken ct             = default);
 
     /// <summary>
-    /// Returns paged translations, optionally filtered by module and/or language.
+    /// Checks whether a translation with the given code and language already exists.
+    /// Used to enforce the unique (code + language) business constraint.
     /// </summary>
-    Task<(IReadOnlyList<Translation> Items, int TotalCount)> GetPagedAsync(
-        int pageNumber,
-        int pageSize,
-        string? moduleFilter = null,
-        string? languageFilter = null,
-        CancellationToken ct = default);
-
     Task<bool> ExistsAsync(
         TranslationCode code,
-        LanguageCode languageCode,
+        LanguageCode    languageCode,
         CancellationToken ct = default);
 
-    void Add(Translation translation);
-    void Update(Translation translation);
+    /// <summary>Physically removes a translation entry from the database.</summary>
     void Remove(Translation translation);
-
-    Task<int> SaveChangesAsync(CancellationToken ct = default);
 }
 
-/// <summary>
-/// Repository interface for <see cref="LocaleConfiguration"/> entities.
-/// </summary>
-public interface ILocaleConfigurationRepository
+// ─── LocaleConfiguration ──────────────────────────────────────────────────────
+
+/// <summary>Write repository for <see cref="LocaleConfiguration"/>.</summary>
+public interface ILocaleConfigurationRepository : IRepository<LocaleConfiguration, Guid>
 {
+    /// <summary>Returns the locale configuration for the given language, or <c>null</c>.</summary>
     Task<LocaleConfiguration?> GetByLanguageAsync(
-        LanguageCode languageCode,
+        LanguageCode      languageCode,
         CancellationToken ct = default);
 
+    /// <summary>Returns all locale configurations.</summary>
     Task<IReadOnlyList<LocaleConfiguration>> GetAllAsync(CancellationToken ct = default);
-
-    Task<bool> ExistsAsync(LanguageCode languageCode, CancellationToken ct = default);
-
-    void Add(LocaleConfiguration configuration);
-    void Update(LocaleConfiguration configuration);
-
-    Task<int> SaveChangesAsync(CancellationToken ct = default);
 }
 
-/// <summary>
-/// Repository interface for <see cref="CurrencyFormat"/> entities.
-/// </summary>
-public interface ICurrencyFormatRepository
+// ─── CurrencyFormat ───────────────────────────────────────────────────────────
+
+/// <summary>Write repository for <see cref="CurrencyFormat"/>.</summary>
+public interface ICurrencyFormatRepository : IRepository<CurrencyFormat, Guid>
 {
+    /// <summary>Finds a currency format for a language + ISO 4217 code pair, or <c>null</c>.</summary>
     Task<CurrencyFormat?> FindAsync(
-        LanguageCode languageCode,
-        string currencyCode,
+        LanguageCode      languageCode,
+        string            currencyCode,
         CancellationToken ct = default);
 
+    /// <summary>Returns all currency formats configured for a given language.</summary>
     Task<IReadOnlyList<CurrencyFormat>> GetByLanguageAsync(
-        LanguageCode languageCode,
+        LanguageCode      languageCode,
         CancellationToken ct = default);
 
-    Task<IReadOnlyList<CurrencyFormat>> GetByCurrencyAsync(
-        string currencyCode,
-        CancellationToken ct = default);
-
-    Task<bool> ExistsAsync(
-        LanguageCode languageCode,
-        string currencyCode,
-        CancellationToken ct = default);
-
-    void Add(CurrencyFormat currencyFormat);
-    void Update(CurrencyFormat currencyFormat);
+    /// <summary>Removes a currency format entry from the database.</summary>
     void Remove(CurrencyFormat currencyFormat);
-
-    Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

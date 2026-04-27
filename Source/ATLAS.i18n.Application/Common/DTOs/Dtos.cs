@@ -1,85 +1,92 @@
 namespace ATLAS.i18n.Application.Common.DTOs;
 
-// ─── Language ─────────────────────────────────────────────────────────────────
+// ── Language ──────────────────────────────────────────────────────────────────
 
 public record LanguageDto(
-    string Code,
-    string Name,
-    string NativeName,
-    string CultureTag,
-    bool IsDefault,
-    bool IsActive,
-    DateTime CreatedAt,
-    DateTime UpdatedAt);
+    Guid            Id,
+    string          Code,
+    string          Name,
+    string          NativeName,
+    bool            IsDefault,
+    bool            IsActive,
+    DateTimeOffset  CreatedAt,
+    string          CreatedBy,
+    DateTimeOffset? UpdatedAt,
+    string?         UpdatedBy);
 
-// ─── Translation ──────────────────────────────────────────────────────────────
+// ── Translation ───────────────────────────────────────────────────────────────
 
 public record TranslationDto(
-    Guid Id,
-    string Code,
-    string Module,
-    string LanguageCode,
-    string Text,
-    string? Context,
-    int? MaxLength,
-    bool IsReviewed,
-    DateTime CreatedAt,
-    DateTime UpdatedAt);
+    Guid            Id,
+    string          Code,
+    string          Module,
+    string          LanguageCode,
+    string          Text,
+    string?         Context,
+    int?            MaxLength,
+    bool            IsReviewed,
+    DateTimeOffset  CreatedAt,
+    string          CreatedBy,
+    DateTimeOffset? UpdatedAt,
+    string?         UpdatedBy);
 
-/// <summary>Lightweight result used in lookup / resolution scenarios.</summary>
+/// <summary>Lightweight result for lookup / hot-path scenarios.</summary>
 public record TranslationLookupDto(
     string Code,
     string LanguageCode,
     string Text,
-    bool IsFallback);
+    /// <summary><c>true</c> when the actual language returned differs from the requested one.</summary>
+    bool   IsFallback,
+    /// <summary>The language actually used (may differ from requested when fallback applied).</summary>
+    string ActualLanguageCode);
 
-/// <summary>Used for bulk translation responses (module / language dictionaries).</summary>
+/// <summary>
+/// Full module string table returned by the bulk-module endpoint.
+/// Key: translation code (e.g. <c>"CRM0001"</c>). Value: translated text.
+/// </summary>
 public record TranslationMapDto(
-    string LanguageCode,
-    string Module,
-    /// <summary>Key: translation code (e.g. "CRM0001"), Value: translated text.</summary>
+    string                              LanguageCode,
+    string                              Module,
     IReadOnlyDictionary<string, string> Translations);
 
-// ─── Locale Configuration ────────────────────────────────────────────────────
+// ── Locale Configuration ──────────────────────────────────────────────────────
 
 public record LocaleConfigurationDto(
-    string LanguageCode,
-    string DateFormat,
-    string ShortDateFormat,
-    string TimeFormat,
-    string DateTimeFormat,
-    string FirstDayOfWeek,
-    string DecimalSeparator,
-    string ThousandsSeparator,
-    int DecimalPlaces,
-    int CurrencyDecimalPlaces);
+    string          LanguageCode,
+    string          DateFormat,
+    string          ShortDateFormat,
+    string          TimeFormat,
+    string          DateTimeFormat,
+    string          FirstDayOfWeek,
+    string          DecimalSeparator,
+    string          ThousandsSeparator,
+    int             DecimalPlaces,
+    int             CurrencyDecimalPlaces,
+    DateTimeOffset  CreatedAt,
+    DateTimeOffset? UpdatedAt);
 
-// ─── Currency Format ──────────────────────────────────────────────────────────
+// ── Currency Format ───────────────────────────────────────────────────────────
 
 public record CurrencyFormatDto(
-    Guid Id,
-    string LanguageCode,
-    string CurrencyCode,
-    string CurrencyName,
-    string Symbol,
-    string SymbolPosition,
-    bool SpaceBetweenSymbolAndAmount,
-    string DecimalSeparator,
-    string ThousandsSeparator,
-    int DecimalPlaces,
-    string NegativePattern,
-    /// <summary>Example: "1.234,56 €" — formatted sample using 1234.56.</summary>
-    string FormattedExample);
+    Guid            Id,
+    string          LanguageCode,
+    string          CurrencyCode,
+    string          CurrencyName,
+    string          Symbol,
+    string          SymbolPosition,
+    bool            SpaceBetweenSymbolAndAmount,
+    string          DecimalSeparator,
+    string          ThousandsSeparator,
+    int             DecimalPlaces,
+    string          NegativePattern,
+    /// <summary>Pre-formatted example: <c>"1.234,56 €"</c> (using 1 234.56).</summary>
+    string          FormattedExample,
+    DateTimeOffset  CreatedAt,
+    DateTimeOffset? UpdatedAt);
 
-// ─── Paging ───────────────────────────────────────────────────────────────────
+// ── Bulk import ───────────────────────────────────────────────────────────────
 
-public record PagedResult<T>(
-    IReadOnlyList<T> Items,
-    int TotalCount,
-    int PageNumber,
-    int PageSize)
-{
-    public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
-    public bool HasNextPage => PageNumber < TotalPages;
-    public bool HasPreviousPage => PageNumber > 1;
-}
+public record BulkUpsertResultDto(
+    int                    Created,
+    int                    Updated,
+    IReadOnlyList<string>  Errors);

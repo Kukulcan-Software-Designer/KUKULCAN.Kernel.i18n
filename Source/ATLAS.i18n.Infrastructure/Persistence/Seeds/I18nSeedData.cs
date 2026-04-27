@@ -1,241 +1,178 @@
-using ATLAS.i18n.Domain.Entities;
-using ATLAS.i18n.Domain.ValueObjects;
-using Microsoft.EntityFrameworkCore;
+using Atlas.SharedKernel.Infrastructure.Primitives;
+using ATLAS.i18n.Infrastructure.Persistence;
 
 namespace ATLAS.i18n.Infrastructure.Persistence.Seeds;
 
 /// <summary>
-/// Seeds the mandatory base data required for ATLAS.i18n to operate:
-///   - English (EN) — default language
-///   - Spanish (ES)
-///   - Catalan (CA)
-///   - French (FR)
-///   - German (DE)
-///   - Locale configurations for EN and ES (the two guaranteed languages)
-///   - Common currency formats: USD and EUR in both EN and ES
-///   - Core system translations (CORE module) in EN and ES
+/// Seeds the mandatory base data required for ATLAS.i18n:
+/// <list type="bullet">
+///   <item>Languages: EN (default), ES, CA, FR, DE, PT, IT</item>
+///   <item>Locale configurations for each language</item>
+///   <item>Common currency formats: USD, EUR, GBP (EN and ES); EUR, USD (CA, FR, DE)</item>
+///   <item>Core system translations (CORE module) in EN and ES</item>
+/// </list>
+/// <para>
+/// All factory methods use the <c>Result</c> pattern from SharedKernel.
+/// Seeding is idempotent — safe to call on every startup.
+/// </para>
 /// </summary>
 public static class I18nSeedData
 {
-    public static async Task SeedAsync(I18nDbContext context)
+    public static async Task SeedAsync(I18nDbContext ctx, CancellationToken ct = default)
     {
-        await SeedLanguagesAsync(context);
-        await SeedLocaleConfigurationsAsync(context);
-        await SeedCurrencyFormatsAsync(context);
-        await SeedCoreTranslationsAsync(context);
-
-        await context.SaveChangesAsync();
+        await SeedLanguagesAsync(ctx, ct);
+        await SeedLocaleConfigurationsAsync(ctx, ct);
+        await SeedCurrencyFormatsAsync(ctx, ct);
+        await SeedCoreTranslationsAsync(ctx, ct);
+        await ctx.SaveChangesAsync(ct);
     }
 
     // ─── Languages ────────────────────────────────────────────────────────────
 
-    private static async Task SeedLanguagesAsync(I18nDbContext context)
+    private static async Task SeedLanguagesAsync(I18nDbContext ctx, CancellationToken ct)
     {
         var languages = new[]
         {
-            Language.Create("EN", "English",    "English",    "en-US", isDefault: true),
-            Language.Create("ES", "Spanish",    "Español",    "es-ES"),
-            Language.Create("CA", "Catalan",    "Català",     "ca-ES"),
-            Language.Create("FR", "French",     "Français",   "fr-FR"),
-            Language.Create("DE", "German",     "Deutsch",    "de-DE"),
-            Language.Create("PT", "Portuguese", "Português",  "pt-PT"),
-            Language.Create("IT", "Italian",    "Italiano",   "it-IT"),
+            ("en-US", "English",    "English",    true),
+            ("es-ES", "Spanish",    "Español",    false),
+            ("ca-ES", "Catalan",    "Català",     false),
+            ("fr-FR", "French",     "Français",   false),
+            ("de-DE", "German",     "Deutsch",    false),
+            ("pt-PT", "Portuguese", "Português",  false),
+            ("it-IT", "Italian",    "Italiano",   false),
         };
 
-        foreach (var lang in languages)
+        foreach (var (code, name, nativeName, isDefault) in languages)
         {
-            var code = lang.Id.Value;
-            if (!await context.Languages.AnyAsync(l => EF.Property<string>(l, "Code") == code))
-                context.Languages.Add(lang);
+            if (await ctx.Languages.AnyAsync(l => l.Code == code, ct)) continue;
+
+            var result = Language.Create(
+                SequentialGuid.NewSequentialGuidAtEnd(), code, name, nativeName, isDefault);
+
+            if (result.IsSuccess)
+                await ctx.Languages.AddAsync(result.Value, ct);
         }
     }
 
     // ─── Locale Configurations ────────────────────────────────────────────────
 
-    private static async Task SeedLocaleConfigurationsAsync(I18nDbContext context)
+    private static async Task SeedLocaleConfigurationsAsync(I18nDbContext ctx, CancellationToken ct)
     {
+        // (languageCode, dateFormat, shortDateFormat, timeFormat, dateTimeFormat,
+        //  firstDayOfWeek, decimalSep, thousandsSep, decPlaces, currDecPlaces)
         var configs = new[]
         {
-            // English (US): MM/dd/yyyy, 12h clock, Sunday first, period decimal
-            LocaleConfiguration.Create(
-                "EN",
-                dateFormat:            "MM/dd/yyyy",
-                shortDateFormat:       "M/d/yy",
-                timeFormat:            "h:mm tt",
-                dateTimeFormat:        "MM/dd/yyyy h:mm tt",
-                firstDayOfWeek:        FirstDayOfWeek.Sunday,
-                decimalSeparator:      '.',
-                thousandsSeparator:    ',',
-                decimalPlaces:         2,
-                currencyDecimalPlaces: 2),
-
-            // Spanish: dd/MM/yyyy, 24h clock, Monday first, comma decimal
-            LocaleConfiguration.Create(
-                "ES",
-                dateFormat:            "dd/MM/yyyy",
-                shortDateFormat:       "d/M/yy",
-                timeFormat:            "HH:mm",
-                dateTimeFormat:        "dd/MM/yyyy HH:mm",
-                firstDayOfWeek:        FirstDayOfWeek.Monday,
-                decimalSeparator:      ',',
-                thousandsSeparator:    '.',
-                decimalPlaces:         2,
-                currencyDecimalPlaces: 2),
-
-            // Catalan: dd/MM/yyyy, 24h, Monday first, comma decimal (same as ES)
-            LocaleConfiguration.Create(
-                "CA",
-                dateFormat:            "dd/MM/yyyy",
-                shortDateFormat:       "d/M/yy",
-                timeFormat:            "HH:mm",
-                dateTimeFormat:        "dd/MM/yyyy HH:mm",
-                firstDayOfWeek:        FirstDayOfWeek.Monday,
-                decimalSeparator:      ',',
-                thousandsSeparator:    '.',
-                decimalPlaces:         2,
-                currencyDecimalPlaces: 2),
-
-            // French: dd/MM/yyyy, 24h, Monday first, comma decimal, space thousands
-            LocaleConfiguration.Create(
-                "FR",
-                dateFormat:            "dd/MM/yyyy",
-                shortDateFormat:       "d/M/yy",
-                timeFormat:            "HH:mm",
-                dateTimeFormat:        "dd/MM/yyyy HH:mm",
-                firstDayOfWeek:        FirstDayOfWeek.Monday,
-                decimalSeparator:      ',',
-                thousandsSeparator:    ' ',
-                decimalPlaces:         2,
-                currencyDecimalPlaces: 2),
-
-            // German: dd.MM.yyyy, 24h, Monday first, comma decimal, period thousands
-            LocaleConfiguration.Create(
-                "DE",
-                dateFormat:            "dd.MM.yyyy",
-                shortDateFormat:       "d.M.yy",
-                timeFormat:            "HH:mm",
-                dateTimeFormat:        "dd.MM.yyyy HH:mm",
-                firstDayOfWeek:        FirstDayOfWeek.Monday,
-                decimalSeparator:      ',',
-                thousandsSeparator:    '.',
-                decimalPlaces:         2,
-                currencyDecimalPlaces: 2),
+            ("en-US", "MM/dd/yyyy", "M/d/yy",   "h:mm tt",  "MM/dd/yyyy h:mm tt",  FirstDayOfWeek.Sunday,  '.', ',', 2, 2),
+            ("es-ES", "dd/MM/yyyy", "d/M/yy",   "HH:mm",    "dd/MM/yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', '.', 2, 2),
+            ("ca-ES", "dd/MM/yyyy", "d/M/yy",   "HH:mm",    "dd/MM/yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', '.', 2, 2),
+            ("fr-FR", "dd/MM/yyyy", "d/M/yy",   "HH:mm",    "dd/MM/yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', ' ', 2, 2),
+            ("de-DE", "dd.MM.yyyy", "d.M.yy",   "HH:mm",    "dd.MM.yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', '.', 2, 2),
+            ("pt-PT", "dd/MM/yyyy", "d/M/yy",   "HH:mm",    "dd/MM/yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', '.', 2, 2),
+            ("it-IT", "dd/MM/yyyy", "d/M/yy",   "HH:mm",    "dd/MM/yyyy HH:mm",    FirstDayOfWeek.Monday,  ',', '.', 2, 2),
         };
 
-        foreach (var cfg in configs)
+        foreach (var (lang, date, shortDate, time, dateTime, dow, dec, thou, dp, cdp) in configs)
         {
-            var langCode = cfg.LanguageCode.Value;
-            if (!await context.LocaleConfigurations.AnyAsync(
-                    lc => EF.Property<string>(lc, "LanguageCode") == langCode))
-                context.LocaleConfigurations.Add(cfg);
+            if (await ctx.LocaleConfigurations.AnyAsync(
+                lc => lc.LanguageCode == Atlas.SharedKernel.Domain.ValueObjects.LanguageCode.Create(lang).Value, ct))
+                continue;
+
+            var result = LocaleConfiguration.Create(
+                SequentialGuid.NewSequentialGuidAtEnd(),
+                lang, date, shortDate, time, dateTime, dow, dec, thou, dp, cdp);
+
+            if (result.IsSuccess)
+                await ctx.LocaleConfigurations.AddAsync(result.Value, ct);
         }
     }
 
     // ─── Currency Formats ─────────────────────────────────────────────────────
 
-    private static async Task SeedCurrencyFormatsAsync(I18nDbContext context)
+    private static async Task SeedCurrencyFormatsAsync(I18nDbContext ctx, CancellationToken ct)
     {
+        // (lang, iso4217, name, symbol, position, space, decSep, thousSep, decPlaces, negativePattern)
         var formats = new[]
         {
-            // USD in English: $1,234.56 / ($1,234.56) negative
-            CurrencyFormat.Create("EN", "USD", "US Dollar",   "$",  CurrencySymbolPosition.Before, false, '.', ',', 2, "({symbol}{amount})"),
-            // EUR in English: €1,234.56
-            CurrencyFormat.Create("EN", "EUR", "Euro",         "€",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
-            // GBP in English: £1,234.56
-            CurrencyFormat.Create("EN", "GBP", "British Pound","£",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
-            // JPY in English: ¥1,234 (0 decimals)
-            CurrencyFormat.Create("EN", "JPY", "Japanese Yen", "¥",  CurrencySymbolPosition.Before, false, '.', ',', 0, "-{symbol}{amount}"),
-
-            // EUR in Spanish: 1.234,56 €
-            CurrencyFormat.Create("ES", "EUR", "Euro",         "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
-            // USD in Spanish: 1.234,56 $
-            CurrencyFormat.Create("ES", "USD", "Dólar estadounidense", "$", CurrencySymbolPosition.After, true,  ',', '.', 2, "-{amount} {symbol}"),
-            // GBP in Spanish: 1.234,56 £
-            CurrencyFormat.Create("ES", "GBP", "Libra esterlina",      "£", CurrencySymbolPosition.After, true,  ',', '.', 2, "-{amount} {symbol}"),
-
-            // EUR in Catalan: 1.234,56 €
-            CurrencyFormat.Create("CA", "EUR", "Euro",         "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
-
-            // EUR in French: 1 234,56 €
-            CurrencyFormat.Create("FR", "EUR", "Euro",         "€",  CurrencySymbolPosition.After,  true,  ',', ' ', 2, "-{amount} {symbol}"),
-
-            // EUR in German: 1.234,56 €
-            CurrencyFormat.Create("DE", "EUR", "Euro",         "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            // English
+            ("en-US", "USD", "US Dollar",       "$",  CurrencySymbolPosition.Before, false, '.', ',', 2, "({symbol}{amount})"),
+            ("en-US", "EUR", "Euro",             "€",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
+            ("en-US", "GBP", "British Pound",    "£",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
+            ("en-US", "JPY", "Japanese Yen",     "¥",  CurrencySymbolPosition.Before, false, '.', ',', 0, "-{symbol}{amount}"),
+            // Spanish
+            ("es-ES", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("es-ES", "USD", "Dólar estadounidense", "$", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
+            ("es-ES", "GBP", "Libra esterlina",  "£",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            // Catalan
+            ("ca-ES", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("ca-ES", "USD", "Dòlar estatunidenc","$",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            // French
+            ("fr-FR", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', ' ', 2, "-{amount} {symbol}"),
+            ("fr-FR", "USD", "Dollar américain", "$",  CurrencySymbolPosition.After,  true,  ',', ' ', 2, "-{amount} {symbol}"),
+            // German
+            ("de-DE", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("de-DE", "USD", "US-Dollar",        "$",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
         };
 
-        foreach (var fmt in formats)
+        foreach (var (lang, iso, name, sym, pos, space, dec, thou, dp, neg) in formats)
         {
-            var lang = fmt.LanguageCode.Value;
-            var curr = fmt.CurrencyCode;
-            if (!await context.CurrencyFormats.AnyAsync(
-                    cf => EF.Property<string>(cf, "LanguageCode") == lang
-                       && cf.CurrencyCode == curr))
-                context.CurrencyFormats.Add(fmt);
+            var langCode = Atlas.SharedKernel.Domain.ValueObjects.LanguageCode.Create(lang).Value;
+            if (await ctx.CurrencyFormats.AnyAsync(
+                cf => cf.LanguageCode == langCode && cf.CurrencyCode == iso, ct))
+                continue;
+
+            var result = CurrencyFormat.Create(
+                SequentialGuid.NewSequentialGuidAtEnd(),
+                lang, iso, name, sym, pos, space, dec, thou, dp, neg);
+
+            if (result.IsSuccess)
+                await ctx.CurrencyFormats.AddAsync(result.Value, ct);
         }
     }
 
-    // ─── Core System Translations ─────────────────────────────────────────────
+    // ─── Core Translations ────────────────────────────────────────────────────
 
-    private static async Task SeedCoreTranslationsAsync(I18nDbContext context)
+    private static async Task SeedCoreTranslationsAsync(I18nDbContext ctx, CancellationToken ct)
     {
-        // Format: (code, module, seq, EN text, ES text, context)
+        // (module, seq, en text, es text, context)
         var entries = new[]
         {
-            // Generic errors
-            ("CORE", 1,  "Not found.",                           "No encontrado.",
-             "Generic 404 message"),
-            ("CORE", 2,  "Validation error.",                    "Error de validación.",
-             "Generic validation error"),
-            ("CORE", 3,  "Unauthorized.",                        "No autorizado.",
-             "HTTP 401 message"),
-            ("CORE", 4,  "Forbidden.",                           "Acceso denegado.",
-             "HTTP 403 message"),
-            ("CORE", 5,  "Internal server error.",               "Error interno del servidor.",
-             "HTTP 500 message"),
-            ("CORE", 6,  "Bad request.",                         "Solicitud incorrecta.",
-             "HTTP 400 message"),
-            ("CORE", 7,  "Service unavailable.",                 "Servicio no disponible.",
-             "HTTP 503 message"),
-            ("CORE", 8,  "Operation completed successfully.",    "Operación completada con éxito.",
-             "Generic success message"),
-            ("CORE", 9,  "The field '{0}' is required.",         "El campo '{0}' es obligatorio.",
-             "Field required validation. {0} = field name"),
-            ("CORE", 10, "The field '{0}' is invalid.",          "El campo '{0}' no es válido.",
-             "Field invalid validation. {0} = field name"),
-            // Pagination
-            ("CORE", 20, "Page {0} of {1}.",                     "Página {0} de {1}.",
-             "Pagination info. {0}=current, {1}=total"),
-            ("CORE", 21, "No results found.",                    "No se encontraron resultados.",
-             "Empty list message"),
-            // i18n module self-descriptions
-            ("CORE", 50, "Translation not found.",               "Traducción no encontrada.",
-             "When a translation code does not exist"),
-            ("CORE", 51, "Language not supported.",              "Idioma no soportado.",
-             "When a requested language is inactive/missing"),
+            ("CORE", 1,  "Not found.",                          "No encontrado.",                "HTTP 404"),
+            ("CORE", 2,  "Validation error.",                   "Error de validación.",          "HTTP 422"),
+            ("CORE", 3,  "Unauthorized.",                       "No autorizado.",                "HTTP 401"),
+            ("CORE", 4,  "Forbidden.",                          "Acceso denegado.",              "HTTP 403"),
+            ("CORE", 5,  "Internal server error.",              "Error interno del servidor.",   "HTTP 500"),
+            ("CORE", 6,  "Bad request.",                        "Solicitud incorrecta.",         "HTTP 400"),
+            ("CORE", 7,  "Service unavailable.",                "Servicio no disponible.",       "HTTP 503"),
+            ("CORE", 8,  "Operation completed successfully.",   "Operación completada con éxito.", "Generic success"),
+            ("CORE", 9,  "The field '{0}' is required.",        "El campo '{0}' es obligatorio.", "{0}=field name"),
+            ("CORE", 10, "The field '{0}' is invalid.",         "El campo '{0}' no es válido.",  "{0}=field name"),
+            ("CORE", 20, "Page {0} of {1}.",                    "Página {0} de {1}.",            "{0}=current, {1}=total"),
+            ("CORE", 21, "No results found.",                   "No se encontraron resultados.", "Empty list"),
+            ("CORE", 50, "Translation not found.",              "Traducción no encontrada.",     "i18n self"),
+            ("CORE", 51, "Language not supported.",             "Idioma no soportado.",          "i18n self"),
         };
 
-        foreach (var (module, seq, enText, esText, ctx) in entries)
+        foreach (var (module, seq, en, es, ctx_) in entries)
         {
-            var code   = $"{module}{seq:D4}";
-            var enLang = "EN";
-            var esLang = "ES";
+            var code = $"{module}{seq:D4}";
 
-            if (!await context.Translations.AnyAsync(
-                    t => EF.Property<string>(t, "Code") == code
-                      && EF.Property<string>(t, "LanguageCode") == enLang))
+            foreach (var (langCode, text) in new[] { ("en-US", en), ("es-ES", es) })
             {
-                var t = Translation.Create(code, enLang, enText, ctx);
-                t.MarkAsReviewed();
-                context.Translations.Add(t);
-            }
+                var langResult = Atlas.SharedKernel.Domain.ValueObjects.LanguageCode.Create(langCode);
+                if (await ctx.Translations.AnyAsync(
+                    t => t.Code == TranslationCode.From(code).Value &&
+                         t.LanguageCode == langResult.Value, ct))
+                    continue;
 
-            if (!await context.Translations.AnyAsync(
-                    t => EF.Property<string>(t, "Code") == code
-                      && EF.Property<string>(t, "LanguageCode") == esLang))
-            {
-                var t = Translation.Create(code, esLang, esText, ctx);
-                t.MarkAsReviewed();
-                context.Translations.Add(t);
+                var result = Translation.Create(
+                    SequentialGuid.NewSequentialGuidAtEnd(),
+                    code, langCode, text, ctx_);
+
+                if (result.IsSuccess)
+                {
+                    result.Value.MarkAsReviewed();
+                    await ctx.Translations.AddAsync(result.Value, ct);
+                }
             }
         }
     }

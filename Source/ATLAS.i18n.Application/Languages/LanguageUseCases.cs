@@ -1,137 +1,102 @@
-using ATLAS.i18n.Application.Common.DTOs;
-using ATLAS.i18n.Application.Common.Interfaces;
-using ATLAS.i18n.Domain.Entities;
-using ATLAS.i18n.Domain.Exceptions;
-using ATLAS.i18n.Domain.Repositories;
-using ATLAS.i18n.Domain.Services;
-using ATLAS.i18n.Domain.ValueObjects;
+using Atlas.SharedKernel.Infrastructure.Primitives;
 using FluentValidation;
-using MediatR;
 
-namespace ATLAS.i18n.Application.Languages.Queries;
+namespace ATLAS.i18n.Application.Languages;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET ALL LANGUAGES
+// QUERIES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 public record GetAllLanguagesQuery(bool ActiveOnly = true)
-    : IRequest<IReadOnlyList<LanguageDto>>;
+    : IRequest<Result<IReadOnlyList<LanguageDto>>>,
+      ICacheableRequest
+{
+    public string    CacheKey      => ActiveOnly ? I18nCacheKeys.LanguagesActive : I18nCacheKeys.LanguagesAll;
+    public TimeSpan? CacheDuration => TimeSpan.FromMinutes(30);
+}
 
 public sealed class GetAllLanguagesQueryHandler
-    : IRequestHandler<GetAllLanguagesQuery, IReadOnlyList<LanguageDto>>
+    : IRequestHandler<GetAllLanguagesQuery, Result<IReadOnlyList<LanguageDto>>>
 {
     private readonly ILanguageRepository _repository;
-    private readonly ICacheService       _cache;
 
-    public GetAllLanguagesQueryHandler(
-        ILanguageRepository repository,
-        ICacheService cache)
-    {
-        _repository = repository;
-        _cache      = cache;
-    }
+    public GetAllLanguagesQueryHandler(ILanguageRepository repository)
+        => _repository = repository;
 
-    public async Task<IReadOnlyList<LanguageDto>> Handle(
+    public async Task<Result<IReadOnlyList<LanguageDto>>> Handle(
         GetAllLanguagesQuery request,
-        CancellationToken cancellationToken)
+        CancellationToken    cancellationToken)
     {
-        var cacheKey = request.ActiveOnly
-            ? CacheKeys.LanguagesActive
-            : CacheKeys.LanguagesAll;
-
-        var cached = await _cache.GetAsync<List<LanguageDto>>(cacheKey, cancellationToken);
-        if (cached is not null)
-            return cached;
-
         var languages = request.ActiveOnly
             ? await _repository.GetAllActiveAsync(cancellationToken)
-            : await _repository.GetAllAsync(cancellationToken);
+            : await _repository.ListAllAsync(cancellationToken);
 
-        var dtos = languages.Select(MapToDto).ToList();
-
-        await _cache.SetAsync(cacheKey, dtos, TimeSpan.FromMinutes(30), cancellationToken);
-
-        return dtos;
+        return Result<IReadOnlyList<LanguageDto>>.Ok(
+            languages.Select(MapToDto).ToList());
     }
 
     internal static LanguageDto MapToDto(Language l) =>
-        new(l.Id.Value, l.Name, l.NativeName, l.CultureTag,
-            l.IsDefault, l.IsActive, l.CreatedAt, l.UpdatedAt);
+        new(l.Id, l.Code, l.Name, l.NativeName, l.IsDefault, l.IsActive,
+            l.CreatedAt, l.CreatedBy, l.UpdatedAt, l.UpdatedBy);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GET SINGLE LANGUAGE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Get single language ──────────────────────────────────────────────────────
 
-public record GetLanguageQuery(string Code) : IRequest<LanguageDto>;
+public record GetLanguageQuery(string Code)
+    : IRequest<Result<LanguageDto>>,
+      ICacheableRequest
+{
+    public string    CacheKey      => I18nCacheKeys.Language(Code);
+    public TimeSpan? CacheDuration => TimeSpan.FromMinutes(30);
+}
 
 public sealed class GetLanguageQueryHandler
-    : IRequestHandler<GetLanguageQuery, LanguageDto>
+    : IRequestHandler<GetLanguageQuery, Result<LanguageDto>>
 {
     private readonly ILanguageRepository _repository;
-    private readonly ICacheService       _cache;
 
-    public GetLanguageQueryHandler(ILanguageRepository repository, ICacheService cache)
-    {
-        _repository = repository;
-        _cache      = cache;
-    }
+    public GetLanguageQueryHandler(ILanguageRepository repository)
+        => _repository = repository;
 
-    public async Task<LanguageDto> Handle(
-        GetLanguageQuery request,
+    public async Task<Result<LanguageDto>> Handle(
+        GetLanguageQuery  request,
         CancellationToken cancellationToken)
     {
-        var code     = LanguageCode.From(request.Code);
-        var cacheKey = CacheKeys.Language(code.Value);
+        var language = await _repository.GetByCodeAsync(request.Code, cancellationToken);
 
-        var cached = await _cache.GetAsync<LanguageDto>(cacheKey, cancellationToken);
-        if (cached is not null)
-            return cached;
-
-        var language = await _repository.GetByCodeAsync(code, cancellationToken)
-            ?? throw new LanguageNotFoundException(code.Value);
-
-        var dto = GetAllLanguagesQueryHandler.MapToDto(language);
-        await _cache.SetAsync(cacheKey, dto, TimeSpan.FromMinutes(30), cancellationToken);
-
-        return dto;
+        return language is null
+            ? Error.NotFound("Language.NotFound", $"Language '{request.Code}' was not found.")
+            : GetAllLanguagesQueryHandler.MapToDto(language);
     }
 }
 
-namespace ATLAS.i18n.Application.Languages.Commands;
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// CREATE LANGUAGE
+// COMMANDS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 public record CreateLanguageCommand(
     string Code,
     string Name,
     string NativeName,
-    string CultureTag,
-    bool IsDefault = false)
-    : IRequest<LanguageDto>;
+    bool   IsDefault = false)
+    : IRequest<Result<LanguageDto>>;
 
-public sealed class CreateLanguageCommandValidator
-    : AbstractValidator<CreateLanguageCommand>
+public sealed class CreateLanguageCommandValidator : AbstractValidator<CreateLanguageCommand>
 {
     public CreateLanguageCommandValidator()
     {
         RuleFor(x => x.Code)
-            .NotEmpty().Length(2).Matches("^[a-zA-Z]{2}$")
-            .WithMessage("Language code must be a 2-letter ISO 639-1 code.");
+            .NotEmpty()
+            .Must(c => LanguageCode.Create(c).IsSuccess)
+            .WithMessage("Code must be a valid BCP-47 tag (e.g. es-ES, en-US, ca-ES).");
 
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
         RuleFor(x => x.NativeName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.CultureTag)
-            .NotEmpty().MaximumLength(10)
-            .Matches(@"^[a-z]{2}-[A-Z]{2}$")
-            .WithMessage("CultureTag must follow BCP-47 format, e.g. 'en-US', 'es-ES'.");
     }
 }
 
 public sealed class CreateLanguageCommandHandler
-    : IRequestHandler<CreateLanguageCommand, LanguageDto>
+    : IRequestHandler<CreateLanguageCommand, Result<LanguageDto>>
 {
     private readonly ILanguageRepository _repository;
     private readonly IUnitOfWork         _unitOfWork;
@@ -139,56 +104,54 @@ public sealed class CreateLanguageCommandHandler
 
     public CreateLanguageCommandHandler(
         ILanguageRepository repository,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork         unitOfWork,
+        ICacheService       cache)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _cache      = cache;
     }
 
-    public async Task<LanguageDto> Handle(
+    public async Task<Result<LanguageDto>> Handle(
         CreateLanguageCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken     cancellationToken)
     {
-        var code = LanguageCode.From(request.Code);
+        if (await _repository.ExistsByCodeAsync(request.Code, cancellationToken))
+            return Error.Conflict(
+                "Language.Duplicate",
+                $"Language '{request.Code}' already exists.");
 
-        if (await _repository.ExistsAsync(code, cancellationToken))
-            throw new I18nDomainException(
-                $"Language '{code.Value}' already exists.");
+        var createResult = Language.Create(
+            SequentialGuid.NewSequentialGuidAtEnd(),
+            request.Code,
+            request.Name,
+            request.NativeName,
+            request.IsDefault);
 
-        var language = Language.Create(
-            request.Code, request.Name, request.NativeName,
-            request.CultureTag, request.IsDefault);
+        if (createResult.IsFailure) return createResult.Error;
 
-        _repository.Add(language);
+        await _repository.AddAsync(createResult.Value, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await InvalidateCacheAsync(cancellationToken);
+        await InvalidateLanguageCachesAsync(cancellationToken);
 
-        return GetAllLanguagesQueryHandler.MapToDto(language);
+        return GetAllLanguagesQueryHandler.MapToDto(createResult.Value);
     }
 
-    private async Task InvalidateCacheAsync(CancellationToken ct)
+    private async Task InvalidateLanguageCachesAsync(CancellationToken ct)
     {
-        await _cache.RemoveAsync(CacheKeys.LanguagesAll, ct);
-        await _cache.RemoveAsync(CacheKeys.LanguagesActive, ct);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesAll, ct);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesActive, ct);
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// UPDATE LANGUAGE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Update Language ──────────────────────────────────────────────────────────
 
-public record UpdateLanguageCommand(
-    string Code,
-    string Name,
-    string NativeName,
-    string CultureTag)
-    : IRequest<LanguageDto>;
+public record UpdateLanguageCommand(string Code, string Name, string NativeName)
+    : IRequest<Result<LanguageDto>>;
 
 public sealed class UpdateLanguageCommandHandler
-    : IRequestHandler<UpdateLanguageCommand, LanguageDto>
+    : IRequestHandler<UpdateLanguageCommand, Result<LanguageDto>>
 {
     private readonly ILanguageRepository _repository;
     private readonly IUnitOfWork         _unitOfWork;
@@ -196,42 +159,42 @@ public sealed class UpdateLanguageCommandHandler
 
     public UpdateLanguageCommandHandler(
         ILanguageRepository repository,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork         unitOfWork,
+        ICacheService       cache)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _cache      = cache;
     }
 
-    public async Task<LanguageDto> Handle(
+    public async Task<Result<LanguageDto>> Handle(
         UpdateLanguageCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken     cancellationToken)
     {
-        var code     = LanguageCode.From(request.Code);
-        var language = await _repository.GetByCodeAsync(code, cancellationToken)
-            ?? throw new LanguageNotFoundException(code.Value);
+        var language = await _repository.GetByCodeAsync(request.Code, cancellationToken);
+        if (language is null)
+            return Error.NotFound("Language.NotFound", $"Language '{request.Code}' was not found.");
 
-        language.Update(request.Name, request.NativeName, request.CultureTag);
+        var updateResult = language.Update(request.Name, request.NativeName);
+        if (updateResult.IsFailure) return updateResult.Error;
+
         _repository.Update(language);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.Language(code.Value), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesAll, cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesActive, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.Language(request.Code), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesAll, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesActive, cancellationToken);
 
         return GetAllLanguagesQueryHandler.MapToDto(language);
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ACTIVATE / DEACTIVATE LANGUAGE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Activate / Deactivate Language ──────────────────────────────────────────
 
-public record SetLanguageActiveCommand(string Code, bool IsActive) : IRequest<Unit>;
+public record SetLanguageActiveCommand(string Code, bool IsActive) : IRequest<r>;
 
 public sealed class SetLanguageActiveCommandHandler
-    : IRequestHandler<SetLanguageActiveCommand, Unit>
+    : IRequestHandler<SetLanguageActiveCommand, Result>
 {
     private readonly ILanguageRepository _repository;
     private readonly IUnitOfWork         _unitOfWork;
@@ -239,44 +202,52 @@ public sealed class SetLanguageActiveCommandHandler
 
     public SetLanguageActiveCommandHandler(
         ILanguageRepository repository,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork         unitOfWork,
+        ICacheService       cache)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _cache      = cache;
     }
 
-    public async Task<Unit> Handle(
+    public async Task<r> Handle(
         SetLanguageActiveCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken        cancellationToken)
     {
-        var code     = LanguageCode.From(request.Code);
-        var language = await _repository.GetByCodeAsync(code, cancellationToken)
-            ?? throw new LanguageNotFoundException(code.Value);
+        var language = await _repository.GetByCodeAsync(request.Code, cancellationToken);
+        if (language is null)
+            return Error.NotFound("Language.NotFound", $"Language '{request.Code}' was not found.");
 
-        if (request.IsActive) language.Activate();
-        else                  language.Deactivate();  // throws if IsDefault
+        Result opResult;
+        if (request.IsActive)
+        {
+            language.Activate();
+            opResult = Result.Ok();
+        }
+        else
+        {
+            opResult = language.Deactivate(); // returns Conflict if IsDefault
+        }
+
+        if (opResult.IsFailure) return opResult.Error;
 
         _repository.Update(language);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.Language(code.Value), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesAll, cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesActive, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.Language(request.Code), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesAll, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesActive, cancellationToken);
 
-        return Unit.Value;
+        return Result.Ok();
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SET DEFAULT LANGUAGE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Set Default Language ────────────────────────────────────────────────────
 
-public record SetDefaultLanguageCommand(string Code) : IRequest<Unit>;
+public record SetDefaultLanguageCommand(string Code) : IRequest<r>;
 
 public sealed class SetDefaultLanguageCommandHandler
-    : IRequestHandler<SetDefaultLanguageCommand, Unit>
+    : IRequestHandler<SetDefaultLanguageCommand, Result>
 {
     private readonly ILanguageDomainService _domainService;
     private readonly IUnitOfWork            _unitOfWork;
@@ -284,26 +255,27 @@ public sealed class SetDefaultLanguageCommandHandler
 
     public SetDefaultLanguageCommandHandler(
         ILanguageDomainService domainService,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork            unitOfWork,
+        ICacheService          cache)
     {
         _domainService = domainService;
         _unitOfWork    = unitOfWork;
         _cache         = cache;
     }
 
-    public async Task<Unit> Handle(
+    public async Task<r> Handle(
         SetDefaultLanguageCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken         cancellationToken)
     {
-        var code = LanguageCode.From(request.Code);
-        await _domainService.SetDefaultLanguageAsync(code, cancellationToken);
+        var result = await _domainService.SetDefaultLanguageAsync(request.Code, cancellationToken);
+        if (result.IsFailure) return result.Error;
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.LanguageDefault, cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesAll, cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.LanguagesActive, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguageDefault, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesAll, cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.LanguagesActive, cancellationToken);
 
-        return Unit.Value;
+        return Result.Ok();
     }
 }
