@@ -1,0 +1,13 @@
+**/.git
+**/.vs
+**/.vscode
+**/obj
+**/bin
+**/logs
+**/TestResults
+**/*.user
+**/Dockerfile*
+**/docker-compose*
+README.md
+.gitignore
+.editorconfig

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>ATLAS.i18n.Infrastructure</RootNamespace>
+    <AssemblyName>ATLAS.i18n.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ATLAS.i18n.Application\ATLAS.i18n.Application.csproj" />
+    <!--
+      ATLAS.SharedKernel.Database provides:
+        - AtlasDbContextBase (EF Core base with all interceptors wired)
+        - AddAtlasDbContext<T>() DI extension (registers DbContext + IUnitOfWork + SlowQueryInterceptor)
+        - UnitOfWork<TContext>
+        - AuditSaveChangesInterceptor, SoftDeleteInterceptor, DomainEventDispatchInterceptor,
+          ImmutableEntityInterceptor, SlowQueryInterceptor
+        - ModelBuilderExtensions (ApplySoftDeleteFilter, ApplyTenantFilter)
+        - AtlasDatabaseOptions, DatabaseProvider
+    -->
+    <ProjectReference Include="..\..\..\ATLAS.SharedKernel.Database\ATLAS.SharedKernel.Database.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Database PROVIDER — PostgreSQL is the default for ATLAS.
+      This package is intentionally referenced only here (per-module), never in SharedKernel.
+    -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"          Version="10.*" />
+
+    <!-- Distributed cache — Redis via StackExchange -->
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory"             Version="10.*" />
+
+    <!-- JSON for cache serialisation -->
+    <PackageReference Include="System.Text.Json"                                Version="10.*" />
+  </ItemGroup>
+
+</Project>
