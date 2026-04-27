@@ -1,0 +1,111 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ATLAS.i18n — Full local development stack
+#
+# Services:
+#   atlas-i18n     — The ATLAS.i18n microservice (port 5100)
+#   postgres       — PostgreSQL 16 (port 5432)
+#   redis          — Redis 7 (port 6379)
+#   redis-commander — Redis GUI (port 8081)  [optional, dev only]
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  atlas-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+
+services:
+
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: atlas-i18n-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       atlas_i18n
+      POSTGRES_USER:     atlas
+      POSTGRES_PASSWORD: atlas_pass
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - atlas-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas_i18n"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  # ─── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: atlas-i18n-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - atlas-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+
+  # ─── Redis Commander (optional GUI — dev only) ────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: atlas-i18n-redis-ui
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: "local:redis:6379"
+    ports:
+      - "8081:8081"
+    networks:
+      - atlas-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - dev-tools   # start with: docker compose --profile dev-tools up
+
+  # ─── ATLAS.i18n Service ───────────────────────────────────────────────────────
+  atlas-i18n:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atlas-i18n-service
+    restart: unless-stopped
+    ports:
+      - "5100:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__I18nDb: "Host=postgres;Port=5432;Database=atlas_i18n;Username=atlas;Password=atlas_pass;"
+      ConnectionStrings__Redis:  "redis:6379,abortConnect=false"
+      Jwt__SecretKey:   "ATLAS_i18n_LOCAL_DEV_SECRET_KEY_MIN_32_CHARS!!"
+      Jwt__Issuer:      "ATLAS"
+      Jwt__Audience:    "ATLAS.i18n"
+      Database__AutoMigrate: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - atlas-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health/live || exit 1"]
+      interval: 30s
+      timeout:  10s
+      start_period: 20s
+      retries:  3
+    volumes:
+      - ./logs:/app/logs
