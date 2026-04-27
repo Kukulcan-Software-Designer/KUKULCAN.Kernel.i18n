@@ -4,38 +4,41 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>ATLAS.i18n.Infrastructure</RootNamespace>
     <AssemblyName>ATLAS.i18n.Infrastructure</AssemblyName>
-    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ATLAS.i18n.Application\ATLAS.i18n.Application.csproj" />
+    <!--
+      ATLAS.SharedKernel.Database provides:
+        - AtlasDbContextBase (EF Core base with all interceptors wired)
+        - AddAtlasDbContext<T>() DI extension (registers DbContext + IUnitOfWork + SlowQueryInterceptor)
+        - UnitOfWork<TContext>
+        - AuditSaveChangesInterceptor, SoftDeleteInterceptor, DomainEventDispatchInterceptor,
+          ImmutableEntityInterceptor, SlowQueryInterceptor
+        - ModelBuilderExtensions (ApplySoftDeleteFilter, ApplyTenantFilter)
+        - AtlasDatabaseOptions, DatabaseProvider
+    -->
+    <ProjectReference Include="..\..\..\ATLAS.SharedKernel.Database\ATLAS.SharedKernel.Database.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- EF Core — provider agnostic; swap PostgreSQL ↔ SQL Server ↔ SQLite freely -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <!-- Default provider: PostgreSQL (ATLAS standard) -->
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
-    <!-- Uncomment to use SQL Server instead -->
-    <!-- <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.*" /> -->
-    <!-- Uncomment to use SQLite (testing / lightweight) -->
-    <!-- <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" /> -->
+    <!--
+      Database PROVIDER — PostgreSQL is the default for ATLAS.
+      This package is intentionally referenced only here (per-module), never in SharedKernel.
+    -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"          Version="10.*" />
 
-    <!-- Caching -->
+    <!-- Distributed cache — Redis via StackExchange -->
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.*" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory"             Version="10.*" />
 
-    <!-- JSON serialization for cache -->
-    <PackageReference Include="System.Text.Json" Version="10.*" />
-
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.*" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.*" />
+    <!-- JSON for cache serialisation -->
+    <PackageReference Include="System.Text.Json"                                Version="10.*" />
   </ItemGroup>
 
 </Project>

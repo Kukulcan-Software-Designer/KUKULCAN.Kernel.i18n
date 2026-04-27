@@ -1,13 +1,13 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ATLAS.i18n — Full local development stack
+# ATLAS.i18n — Local development stack
 #
 # Services:
-#   atlas-i18n     — The ATLAS.i18n microservice (port 5100)
-#   postgres       — PostgreSQL 16 (port 5432)
-#   redis          — Redis 7 (port 6379)
-#   redis-commander — Redis GUI (port 8081)  [optional, dev only]
+#   atlas-i18n  — ATLAS.i18n microservice          → http://localhost:5100
+#   postgres    — PostgreSQL 16                     → localhost:5432
+#   redis       — Redis 7                           → localhost:6379
+#   redis-ui    — Redis Commander (dev-tools only)  → http://localhost:8081
 # ─────────────────────────────────────────────────────────────────────────────
 
 networks:
@@ -20,7 +20,6 @@ volumes:
 
 services:
 
-  # ─── PostgreSQL ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: atlas-i18n-postgres
@@ -41,12 +40,15 @@ services:
       timeout:  5s
       retries:  5
 
-  # ─── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: atlas-i18n-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
     ports:
@@ -59,8 +61,8 @@ services:
       timeout:  5s
       retries:  5
 
-  # ─── Redis Commander (optional GUI — dev only) ────────────────────────────────
-  redis-commander:
+  # Optional GUI — start with: docker compose --profile dev-tools up
+  redis-ui:
     image: rediscommander/redis-commander:latest
     container_name: atlas-i18n-redis-ui
     restart: unless-stopped
@@ -74,26 +76,37 @@ services:
       redis:
         condition: service_healthy
     profiles:
-      - dev-tools   # start with: docker compose --profile dev-tools up
+      - dev-tools
 
-  # ─── ATLAS.i18n Service ───────────────────────────────────────────────────────
   atlas-i18n:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..           # solution root (so SharedKernel sources are reachable)
+      dockerfile: ATLAS.i18n/Dockerfile
     container_name: atlas-i18n-service
     restart: unless-stopped
     ports:
       - "5100:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__I18nDb: "Host=postgres;Port=5432;Database=atlas_i18n;Username=atlas;Password=atlas_pass;"
-      ConnectionStrings__Redis:  "redis:6379,abortConnect=false"
-      Jwt__SecretKey:   "ATLAS_i18n_LOCAL_DEV_SECRET_KEY_MIN_32_CHARS!!"
-      Jwt__Issuer:      "ATLAS"
-      Jwt__Audience:    "ATLAS.i18n"
+      ASPNETCORE_URLS:        "http://+:8080"
+
+      # SharedKernel DB options section (AtlasDatabaseOptions.SectionKey = "Atlas:Database")
+      Atlas__Database__Provider:          "PostgreSql"
+      Atlas__Database__ConnectionString:  "Host=postgres;Port=5432;Database=atlas_i18n;Username=atlas;Password=atlas_pass;"
+      Atlas__Database__EnableDetailedErrors:        "true"
+      Atlas__Database__EnableSensitiveDataLogging:  "false"
+
+      # Health check connection string
+      ConnectionStrings__Database: "Host=postgres;Port=5432;Database=atlas_i18n;Username=atlas;Password=atlas_pass;"
+      ConnectionStrings__Redis:    "redis:6379,abortConnect=false"
+
+      # Auto-migrate on startup in this compose environment
       Database__AutoMigrate: "true"
+
+      Jwt__SecretKey:  "ATLAS_i18n_LOCAL_DEV_SECRET_MIN_32_CHARS!!"
+      Jwt__Issuer:     "ATLAS"
+      Jwt__Audience:   "ATLAS.i18n"
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,11 +114,11 @@ services:
         condition: service_healthy
     networks:
       - atlas-net
+    volumes:
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8080/health/live || exit 1"]
       interval: 30s
       timeout:  10s
-      start_period: 20s
+      start_period: 25s
       retries:  3
-    volumes:
-      - ./logs:/app/logs

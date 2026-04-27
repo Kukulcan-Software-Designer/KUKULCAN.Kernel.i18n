@@ -1,53 +1,74 @@
-using ATLAS.i18n.Application.Common.Interfaces;
-using ATLAS.i18n.Domain.Repositories;
+using ATLAS.SharedKernel.Database.Extensions;
 using ATLAS.i18n.Infrastructure.Caching;
 using ATLAS.i18n.Infrastructure.Persistence;
 using ATLAS.i18n.Infrastructure.Persistence.Repositories;
-using Microsoft.EntityFrameworkCore;
+using ATLAS.i18n.Infrastructure.Persistence.Seeds;
+using ATLAS.i18n.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ATLAS.i18n.Infrastructure;
 
 /// <summary>
-/// Registers all Infrastructure layer services: EF Core, caching, and repositories.
+/// Registers all Infrastructure layer services for ATLAS.i18n.
+/// Call from <c>Program.cs</c>: <c>services.AddAtlasI18nInfrastructure(configuration);</c>
 /// </summary>
 public static class InfrastructureServiceRegistration
 {
     public static IServiceCollection AddAtlasI18nInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration          configuration)
     {
-        // ─── Database ─────────────────────────────────────────────────────────
-        var connectionString = configuration.GetConnectionString("I18nDb")
-            ?? throw new InvalidOperationException(
-                "Connection string 'I18nDb' is not configured. " +
-                "Add ConnectionStrings:I18nDb to appsettings.json.");
+        // ── DbContext + IUnitOfWork (via SharedKernel extension) ───────────────
+        //
+        // AddAtlasDbContext<T> does all of:
+        //   ① Binds AtlasDatabaseOptions from "Atlas:Database" config section
+        //   ② Registers I18nDbContext (scoped)
+        //   ③ Registers IUnitOfWork → UnitOfWork<I18nDbContext> (scoped)
+        //   ④ Registers SlowQueryInterceptor (singleton)
+        //
+        services.AddAtlasDbContext<I18nDbContext>(configuration);
 
-        services.AddDbContext<I18nDbContext>(options =>
-        {
-            // Default: PostgreSQL — switch provider here if needed
-            options.UseNpgsql(connectionString, npgsql =>
-            {
-                npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "i18n");
-                npgsql.EnableRetryOnFailure(
-                    maxRetryCount: 5,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorCodesToAdd: null);
-            });
-
-            // Enable detailed errors and sensitive data logging in Development only
-            // (controlled externally via environment)
-        });
-
-        // ─── Repositories ──────────────────────────────────────────────────────
+        // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<ILanguageRepository,           LanguageRepository>();
         services.AddScoped<ITranslationRepository,        TranslationRepository>();
         services.AddScoped<ILocaleConfigurationRepository, LocaleConfigurationRepository>();
         services.AddScoped<ICurrencyFormatRepository,     CurrencyFormatRepository>();
-        services.AddScoped<IUnitOfWork,                   UnitOfWork>();
 
-        // ─── Caching ──────────────────────────────────────────────────────────
+        // ── System services (ICurrentUser, ITenantContext, IDateTimeProvider) ──
+        // i18n is a global service — no real tenant context needed
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser,      HttpCurrentUser>();
+        services.AddSingleton<ITenantContext, I18nSystemTenantContext>();
+        services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+
+        // ── Cache (ICacheService from SharedKernel.Abstractions) ──────────────
+        RegisterCacheService(services, configuration);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Applies EF Core migrations and seeds baseline data.
+    /// Called once during application startup after the host is built.
+    /// </summary>
+    public static async Task MigrateAndSeedAsync(
+        IServiceProvider  serviceProvider,
+        CancellationToken ct = default)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var ctx         = scope.ServiceProvider.GetRequiredService<I18nDbContext>();
+
+        await ctx.Database.MigrateAsync(ct);
+        await I18nSeedData.SeedAsync(ctx, ct);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private static void RegisterCacheService(
+        IServiceCollection services,
+        IConfiguration     configuration)
+    {
         var redisConnection = configuration.GetConnectionString("Redis");
 
         if (!string.IsNullOrWhiteSpace(redisConnection))
@@ -62,24 +83,9 @@ public static class InfrastructureServiceRegistration
         }
         else
         {
-            // Fallback: pure in-memory cache (single-node / development)
+            // Fallback: pure in-memory cache (development / single-node)
             services.AddMemoryCache();
-            services.AddSingleton<ICacheService, MemoryCacheService>();
+            services.AddSingleton<ICacheService, MemoryOnlyCacheService>();
         }
-
-        return services;
-    }
-
-    /// <summary>
-    /// Applies pending EF Core migrations and runs the seed data.
-    /// Call during application startup (after building the host).
-    /// </summary>
-    public static async Task MigrateAndSeedAsync(IServiceProvider serviceProvider)
-    {
-        using var scope   = serviceProvider.CreateScope();
-        var context       = scope.ServiceProvider.GetRequiredService<I18nDbContext>();
-
-        await context.Database.MigrateAsync();
-        await Seeds.I18nSeedData.SeedAsync(context);
     }
 }

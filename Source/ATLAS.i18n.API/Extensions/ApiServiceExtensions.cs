@@ -8,41 +8,42 @@ public static class ApiServiceExtensions
 {
     public static IServiceCollection AddAtlasI18nApi(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration          configuration)
     {
-        services.AddControllers(opts =>
-        {
-            opts.SuppressAsyncSuffixInActionNames = false;
-        })
-        .AddJsonOptions(opts =>
-        {
-            opts.JsonSerializerOptions.PropertyNamingPolicy        =
-                System.Text.Json.JsonNamingPolicy.CamelCase;
-            opts.JsonSerializerOptions.DefaultIgnoreCondition      =
-                System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
-            opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-        });
+        // ── Controllers ───────────────────────────────────────────────────────
+        services.AddControllers()
+            .AddJsonOptions(opts =>
+            {
+                opts.JsonSerializerOptions.PropertyNamingPolicy        =
+                    System.Text.Json.JsonNamingPolicy.CamelCase;
+                opts.JsonSerializerOptions.DefaultIgnoreCondition      =
+                    System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+                opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            });
 
-        // OpenAPI / Scalar
+        // ── OpenAPI / Scalar ──────────────────────────────────────────────────
         services.AddOpenApi(opts =>
         {
-            opts.AddDocumentTransformer((doc, ctx, ct) =>
+            opts.AddDocumentTransformer((doc, _, _) =>
             {
-                doc.Info.Title       = "ATLAS.i18n API";
+                doc.Info.Title       = "ATLAS.i18n — Internationalisation Service";
                 doc.Info.Version     = "v1";
                 doc.Info.Description =
-                    "Internationalisation service for the ATLAS platform. " +
-                    "Provides translations, locale configurations, and currency formatting.";
+                    "Global translation lookup, locale configuration, and currency formatting for ATLAS ERP. " +
+                    "All data is global (not tenant-scoped). " +
+                    "Translations use BCP-47 language tags and fall back automatically via the language chain " +
+                    "(e.g. es-MX → es → en).";
                 return Task.CompletedTask;
             });
         });
 
-        // JWT Authentication (shared with the rest of ATLAS)
+        // ── JWT Bearer (shared with the rest of ATLAS) ────────────────────────
         var jwtSection = configuration.GetSection("Jwt");
         var key        = Encoding.UTF8.GetBytes(
-            jwtSection["SecretKey"] ?? "ATLAS_DEFAULT_DEV_KEY_CHANGE_IN_PRODUCTION");
+            jwtSection["SecretKey"] ?? "ATLAS_DEFAULT_DEV_KEY_CHANGE_IN_PROD_MIN_32CH");
 
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(opts =>
             {
                 opts.TokenValidationParameters = new TokenValidationParameters
@@ -58,36 +59,30 @@ public static class ApiServiceExtensions
                 };
             });
 
+        // ── Authorization policies ────────────────────────────────────────────
         services.AddAuthorization(opts =>
         {
-            // Read-only policy — any authenticated user can query translations
-            opts.AddPolicy("i18n.read", policy =>
-                policy.RequireAuthenticatedUser());
-
-            // Write policy — restricted to admin role
+            // Any authenticated ATLAS user may read translations
+            opts.AddPolicy("i18n.read",  policy => policy.RequireAuthenticatedUser());
+            // Only ATLAS admins may write (create/update/delete)
             opts.AddPolicy("i18n.write", policy =>
                 policy.RequireRole("ATLAS.Admin", "ATLAS.i18n.Admin"));
         });
 
-        // Health checks
-        var connectionString = configuration.GetConnectionString("I18nDb") ?? string.Empty;
-        var redisConnection  = configuration.GetConnectionString("Redis")   ?? string.Empty;
+        // ── Health checks ─────────────────────────────────────────────────────
+        var connStr = configuration.GetConnectionString("Database") ?? string.Empty;
+        var redis   = configuration.GetConnectionString("Redis")    ?? string.Empty;
 
-        var hcBuilder = services.AddHealthChecks()
-            .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
+        var hc = services.AddHealthChecks()
+            .AddCheck("self",
+                () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
                 tags: ["live"]);
 
-        if (!string.IsNullOrWhiteSpace(connectionString))
-            hcBuilder.AddNpgSql(
-                connectionString,
-                name:  "postgresql",
-                tags:  ["ready", "db"]);
+        if (!string.IsNullOrWhiteSpace(connStr))
+            hc.AddNpgSql(connStr, name: "postgresql", tags: ["ready", "db"]);
 
-        if (!string.IsNullOrWhiteSpace(redisConnection))
-            hcBuilder.AddRedis(
-                redisConnection,
-                name:  "redis",
-                tags:  ["ready", "cache"]);
+        if (!string.IsNullOrWhiteSpace(redis))
+            hc.AddRedis(redis, name: "redis", tags: ["ready", "cache"]);
 
         return services;
     }

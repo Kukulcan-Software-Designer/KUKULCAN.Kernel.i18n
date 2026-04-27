@@ -1,11 +1,5 @@
-using ATLAS.i18n.Application.Common.DTOs;
-using ATLAS.i18n.Application.Common.Interfaces;
-using ATLAS.i18n.Domain.Entities;
-using ATLAS.i18n.Domain.Exceptions;
-using ATLAS.i18n.Domain.Repositories;
-using ATLAS.i18n.Domain.ValueObjects;
+using Atlas.SharedKernel.Infrastructure.Primitives;
 using FluentValidation;
-using MediatR;
 
 namespace ATLAS.i18n.Application.Translations.Commands;
 
@@ -13,14 +7,13 @@ namespace ATLAS.i18n.Application.Translations.Commands;
 // CREATE TRANSLATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// <summary>Creates a new translation entry for a code + language combination.</summary>
 public record CreateTranslationCommand(
-    string Code,
-    string LanguageCode,
-    string Text,
+    string  Code,
+    string  LanguageCode,
+    string  Text,
     string? Context   = null,
-    int?   MaxLength  = null)
-    : IRequest<TranslationDto>;
+    int?    MaxLength = null)
+    : IRequest<Result<TranslationDto>>;
 
 public sealed class CreateTranslationCommandValidator
     : AbstractValidator<CreateTranslationCommand>
@@ -29,102 +22,112 @@ public sealed class CreateTranslationCommandValidator
     {
         RuleFor(x => x.Code)
             .NotEmpty()
-            .Must(c =>
-            {
-                try { TranslationCode.From(c); return true; }
-                catch { return false; }
-            })
+            .Must(c => TranslationCode.From(c).IsSuccess)
             .WithMessage("Translation code must follow the format MODULE + 4 digits (e.g. CRM0001).");
 
         RuleFor(x => x.LanguageCode)
-            .NotEmpty().Length(2).Matches("^[a-zA-Z]{2}$");
-
-        RuleFor(x => x.Text)
             .NotEmpty()
-            .MaximumLength(4000);
+            .Must(lc => LanguageCode.Create(lc).IsSuccess)
+            .WithMessage("Language code must be a valid BCP-47 tag (e.g. es-ES, en-US).");
+
+        RuleFor(x => x.Text).NotEmpty().MaximumLength(4000);
 
         When(x => x.MaxLength.HasValue, () =>
-            RuleFor(x => x.MaxLength!.Value).GreaterThan(0));
-
-        When(x => x.MaxLength.HasValue && !string.IsNullOrEmpty(x.Text), () =>
+        {
+            RuleFor(x => x.MaxLength!.Value).GreaterThan(0);
             RuleFor(x => x)
-                .Must(x => x.Text.Length <= x.MaxLength!.Value)
-                .WithMessage("Text exceeds the specified MaxLength."));
+                .Must(x => !x.MaxLength.HasValue || x.Text.Length <= x.MaxLength.Value)
+                .WithMessage("Text length exceeds the specified MaxLength.");
+        });
     }
 }
 
 public sealed class CreateTranslationCommandHandler
-    : IRequestHandler<CreateTranslationCommand, TranslationDto>
+    : IRequestHandler<CreateTranslationCommand, Result<TranslationDto>>
 {
-    private readonly ITranslationRepository _repository;
+    private readonly ITranslationRepository _translationRepo;
     private readonly ILanguageRepository    _languageRepo;
     private readonly IUnitOfWork            _unitOfWork;
     private readonly ICacheService          _cache;
 
     public CreateTranslationCommandHandler(
-        ITranslationRepository repository,
-        ILanguageRepository languageRepo,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        ITranslationRepository translationRepo,
+        ILanguageRepository    languageRepo,
+        IUnitOfWork            unitOfWork,
+        ICacheService          cache)
     {
-        _repository   = repository;
-        _languageRepo = languageRepo;
-        _unitOfWork   = unitOfWork;
-        _cache        = cache;
+        _translationRepo = translationRepo;
+        _languageRepo    = languageRepo;
+        _unitOfWork      = unitOfWork;
+        _cache           = cache;
     }
 
-    public async Task<TranslationDto> Handle(
+    public async Task<Result<TranslationDto>> Handle(
         CreateTranslationCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken        cancellationToken)
     {
-        var code = TranslationCode.From(request.Code);
-        var lang = LanguageCode.From(request.LanguageCode);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
+
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
+
+        var code = codeResult.Value;
+        var lang = langResult.Value;
 
         // Verify language exists and is active
-        var language = await _languageRepo.GetByCodeAsync(lang, cancellationToken)
-            ?? throw new LanguageNotFoundException(lang.Value);
+        var language = await _languageRepo.GetByCodeAsync(lang.Value, cancellationToken);
+        if (language is null)
+            return Error.NotFound("Language.NotFound", $"Language '{lang.Value}' was not found.");
 
         if (!language.IsActive)
-            throw new I18nDomainException(
+            return Error.Conflict(
+                "Language.Inactive",
                 $"Language '{lang.Value}' is inactive. Translations cannot be added to inactive languages.");
 
-        // Enforce uniqueness
-        if (await _repository.ExistsAsync(code, lang, cancellationToken))
-            throw new DuplicateTranslationException(code.Value, lang.Value);
+        // Enforce uniqueness (code + language)
+        if (await _translationRepo.ExistsAsync(code, lang, cancellationToken))
+            return Error.Conflict(
+                "Translation.Duplicate",
+                $"A translation for '{code.Value}' in language '{lang.Value}' already exists.");
 
-        var translation = Translation.Create(
+        // Create entity using Result pattern — use SequentialGuid for PostgreSQL optimisation
+        var createResult = Translation.Create(
+            SequentialGuid.NewSequentialGuidAtEnd(),
             request.Code,
             request.LanguageCode,
             request.Text,
             request.Context,
             request.MaxLength);
 
-        _repository.Add(translation);
+        if (createResult.IsFailure) return createResult.Error;
+
+        await _translationRepo.AddAsync(createResult.Value, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Invalidate relevant cache entries
-        await _cache.RemoveAsync(CacheKeys.Translation(code.Value, lang.Value), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.TranslationsModule(code.Module, lang.Value), cancellationToken);
+        // Invalidate cache
+        await _cache.RemoveAsync(I18nCacheKeys.Translation(code.Value, lang.Value), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.ModuleTranslations(code.Module, lang.Value), cancellationToken);
 
-        return MapToDto(translation);
+        return MapToDto(createResult.Value);
     }
 
-    private static TranslationDto MapToDto(Domain.Entities.Translation t) =>
+    internal static TranslationDto MapToDto(Translation t) =>
         new(t.Id, t.Code.Value, t.Code.Module, t.LanguageCode.Value,
-            t.Text, t.Context, t.MaxLength, t.IsReviewed, t.CreatedAt, t.UpdatedAt);
+            t.Text, t.Context, t.MaxLength, t.IsReviewed,
+            t.CreatedAt, t.CreatedBy, t.UpdatedAt, t.UpdatedBy);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // UPDATE TRANSLATION TEXT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// <summary>Updates the text of an existing translation. Resets review status.</summary>
 public record UpdateTranslationCommand(
-    string Code,
-    string LanguageCode,
-    string NewText,
+    string  Code,
+    string  LanguageCode,
+    string  NewText,
     string? NewContext = null)
-    : IRequest<TranslationDto>;
+    : IRequest<Result<TranslationDto>>;
 
 public sealed class UpdateTranslationCommandValidator
     : AbstractValidator<UpdateTranslationCommand>
@@ -132,13 +135,16 @@ public sealed class UpdateTranslationCommandValidator
     public UpdateTranslationCommandValidator()
     {
         RuleFor(x => x.Code).NotEmpty();
-        RuleFor(x => x.LanguageCode).NotEmpty().Length(2).Matches("^[a-zA-Z]{2}$");
+        RuleFor(x => x.LanguageCode)
+            .NotEmpty()
+            .Must(lc => LanguageCode.Create(lc).IsSuccess)
+            .WithMessage("Language code must be a valid BCP-47 tag.");
         RuleFor(x => x.NewText).NotEmpty().MaximumLength(4000);
     }
 }
 
 public sealed class UpdateTranslationCommandHandler
-    : IRequestHandler<UpdateTranslationCommand, TranslationDto>
+    : IRequestHandler<UpdateTranslationCommand, Result<TranslationDto>>
 {
     private readonly ITranslationRepository _repository;
     private readonly IUnitOfWork            _unitOfWork;
@@ -146,50 +152,56 @@ public sealed class UpdateTranslationCommandHandler
 
     public UpdateTranslationCommandHandler(
         ITranslationRepository repository,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork            unitOfWork,
+        ICacheService          cache)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _cache      = cache;
     }
 
-    public async Task<TranslationDto> Handle(
+    public async Task<Result<TranslationDto>> Handle(
         UpdateTranslationCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken        cancellationToken)
     {
-        var code        = TranslationCode.From(request.Code);
-        var lang        = LanguageCode.From(request.LanguageCode);
-        var translation = await _repository.FindAsync(code, lang, cancellationToken)
-            ?? throw new TranslationNotFoundException(code.Value, lang.Value);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        translation.UpdateText(request.NewText);
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
+
+        var code        = codeResult.Value;
+        var lang        = langResult.Value;
+        var translation = await _repository.FindAsync(code, lang, cancellationToken);
+
+        if (translation is null)
+            return Error.NotFound(
+                "Translation.NotFound",
+                $"Translation '{code.Value}' for language '{lang.Value}' was not found.");
+
+        var updateResult = translation.UpdateText(request.NewText);
+        if (updateResult.IsFailure) return updateResult.Error;
+
         translation.UpdateContext(request.NewContext);
 
         _repository.Update(translation);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.Translation(code.Value, lang.Value), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.TranslationsModule(code.Module, lang.Value), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.Translation(code.Value, lang.Value), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.ModuleTranslations(code.Module, lang.Value), cancellationToken);
 
-        return new TranslationDto(
-            translation.Id, translation.Code.Value, translation.Code.Module,
-            translation.LanguageCode.Value, translation.Text, translation.Context,
-            translation.MaxLength, translation.IsReviewed,
-            translation.CreatedAt, translation.UpdatedAt);
+        return CreateTranslationCommandHandler.MapToDto(translation);
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DELETE TRANSLATION
+// DELETE TRANSLATION  (non-English only)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// <summary>Deletes a translation for a specific code + language combination.</summary>
-public record DeleteTranslationCommand(string Code, string LanguageCode)
-    : IRequest<Unit>;
+public record DeleteTranslationCommand(string Code, string LanguageCode) : IRequest<Result>;
 
 public sealed class DeleteTranslationCommandHandler
-    : IRequestHandler<DeleteTranslationCommand, Unit>
+    : IRequestHandler<DeleteTranslationCommand, Result>
 {
     private readonly ITranslationRepository _repository;
     private readonly IUnitOfWork            _unitOfWork;
@@ -197,36 +209,47 @@ public sealed class DeleteTranslationCommandHandler
 
     public DeleteTranslationCommandHandler(
         ITranslationRepository repository,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        IUnitOfWork            unitOfWork,
+        ICacheService          cache)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
         _cache      = cache;
     }
 
-    public async Task<Unit> Handle(
+    public async Task<Result> Handle(
         DeleteTranslationCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken        cancellationToken)
     {
-        var code        = TranslationCode.From(request.Code);
-        var lang        = LanguageCode.From(request.LanguageCode);
-        var translation = await _repository.FindAsync(code, lang, cancellationToken)
-            ?? throw new TranslationNotFoundException(code.Value, lang.Value);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        // Protect default-language (EN) entries — warn but allow via explicit flag
-        if (lang == LanguageCode.English)
-            throw new I18nDomainException(
-                $"Cannot delete the English (default) translation for '{code.Value}'. " +
-                "Remove all other language variants first, or use bulk-delete.");
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
+
+        var code = codeResult.Value;
+        var lang = langResult.Value;
+
+        // Protect English (default) entries — they are the fallback for all other languages
+        if (lang.Language == "en")
+            return Error.Conflict(
+                "Translation.English.ProtectedDelete",
+                $"Cannot delete the English translation for '{code.Value}'. " +
+                "Remove all other language variants first, then delete the English entry via the admin bulk-delete tool.");
+
+        var translation = await _repository.FindAsync(code, lang, cancellationToken);
+        if (translation is null)
+            return Error.NotFound(
+                "Translation.NotFound",
+                $"Translation '{code.Value}' for language '{lang.Value}' was not found.");
 
         _repository.Remove(translation);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.Translation(code.Value, lang.Value), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.TranslationsModule(code.Module, lang.Value), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.Translation(code.Value, lang.Value), cancellationToken);
+        await _cache.RemoveAsync(I18nCacheKeys.ModuleTranslations(code.Module, lang.Value), cancellationToken);
 
-        return Unit.Value;
+        return Result.Ok();
     }
 }
 
@@ -234,162 +257,164 @@ public sealed class DeleteTranslationCommandHandler
 // MARK AS REVIEWED / UNREVIEWED
 // ═══════════════════════════════════════════════════════════════════════════════
 
-public record MarkTranslationReviewedCommand(string Code, string LanguageCode, bool IsReviewed)
-    : IRequest<Unit>;
+public record SetTranslationReviewedCommand(string Code, string LanguageCode, bool IsReviewed)
+    : IRequest<Result>;
 
-public sealed class MarkTranslationReviewedCommandHandler
-    : IRequestHandler<MarkTranslationReviewedCommand, Unit>
+public sealed class SetTranslationReviewedCommandHandler
+    : IRequestHandler<SetTranslationReviewedCommand, Result>
 {
     private readonly ITranslationRepository _repository;
     private readonly IUnitOfWork            _unitOfWork;
 
-    public MarkTranslationReviewedCommandHandler(
+    public SetTranslationReviewedCommandHandler(
         ITranslationRepository repository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork            unitOfWork)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<Unit> Handle(
-        MarkTranslationReviewedCommand request,
-        CancellationToken cancellationToken)
+    public async Task<Result> Handle(
+        SetTranslationReviewedCommand request,
+        CancellationToken             cancellationToken)
     {
-        var code        = TranslationCode.From(request.Code);
-        var lang        = LanguageCode.From(request.LanguageCode);
-        var translation = await _repository.FindAsync(code, lang, cancellationToken)
-            ?? throw new TranslationNotFoundException(code.Value, lang.Value);
+        var codeResult = TranslationCode.From(request.Code);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        if (request.IsReviewed)
-            translation.MarkAsReviewed();
-        else
-            translation.MarkAsUnreviewed();
+        var langResult = LanguageCode.Create(request.LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
+
+        var translation = await _repository.FindAsync(
+            codeResult.Value, langResult.Value, cancellationToken);
+
+        if (translation is null)
+            return Error.NotFound(
+                "Translation.NotFound",
+                $"Translation '{codeResult.Value.Value}' for language '{langResult.Value.Value}' was not found.");
+
+        if (request.IsReviewed) translation.MarkAsReviewed();
+        else                    translation.MarkAsUnreviewed();
 
         _repository.Update(translation);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Unit.Value;
+        return Result.Ok();
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BULK UPSERT (import)
+// BULK UPSERT  (import / CI-CD pipeline)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// <summary>
-/// Inserts or updates a batch of translations in a single operation.
-/// Used during import, initial seeding, or CI/CD pipeline updates.
-/// </summary>
 public record BulkUpsertTranslationsCommand(
     IReadOnlyList<BulkTranslationItem> Items)
-    : IRequest<BulkUpsertResult>;
+    : IRequest<Result<BulkUpsertResultDto>>;
 
 public record BulkTranslationItem(
-    string Code,
-    string LanguageCode,
-    string Text,
-    string? Context  = null,
-    int?   MaxLength = null);
-
-public record BulkUpsertResult(
-    int Created,
-    int Updated,
-    IReadOnlyList<string> Errors);
+    string  Code,
+    string  LanguageCode,
+    string  Text,
+    string? Context   = null,
+    int?    MaxLength = null);
 
 public sealed class BulkUpsertTranslationsCommandValidator
     : AbstractValidator<BulkUpsertTranslationsCommand>
 {
     public BulkUpsertTranslationsCommandValidator()
     {
-        RuleFor(x => x.Items).NotEmpty().WithMessage("At least one item is required.");
-        RuleFor(x => x.Items).Must(i => i.Count <= 5000)
-            .WithMessage("Maximum 5,000 items per bulk operation.");
+        RuleFor(x => x.Items)
+            .NotEmpty().WithMessage("At least one item is required.")
+            .Must(i => i.Count <= 5000).WithMessage("Maximum 5,000 items per bulk operation.");
 
         RuleForEach(x => x.Items).ChildRules(item =>
         {
             item.RuleFor(i => i.Code).NotEmpty();
-            item.RuleFor(i => i.LanguageCode).NotEmpty().Length(2);
+            item.RuleFor(i => i.LanguageCode).NotEmpty();
             item.RuleFor(i => i.Text).NotEmpty().MaximumLength(4000);
         });
     }
 }
 
 public sealed class BulkUpsertTranslationsCommandHandler
-    : IRequestHandler<BulkUpsertTranslationsCommand, BulkUpsertResult>
+    : IRequestHandler<BulkUpsertTranslationsCommand, Result<BulkUpsertResultDto>>
 {
-    private readonly ITranslationRepository _repository;
+    private readonly ITranslationRepository _translationRepo;
     private readonly ILanguageRepository    _languageRepo;
     private readonly IUnitOfWork            _unitOfWork;
     private readonly ICacheService          _cache;
 
     public BulkUpsertTranslationsCommandHandler(
-        ITranslationRepository repository,
-        ILanguageRepository languageRepo,
-        IUnitOfWork unitOfWork,
-        ICacheService cache)
+        ITranslationRepository translationRepo,
+        ILanguageRepository    languageRepo,
+        IUnitOfWork            unitOfWork,
+        ICacheService          cache)
     {
-        _repository   = repository;
-        _languageRepo = languageRepo;
-        _unitOfWork   = unitOfWork;
-        _cache        = cache;
+        _translationRepo = translationRepo;
+        _languageRepo    = languageRepo;
+        _unitOfWork      = unitOfWork;
+        _cache           = cache;
     }
 
-    public async Task<BulkUpsertResult> Handle(
+    public async Task<Result<BulkUpsertResultDto>> Handle(
         BulkUpsertTranslationsCommand request,
-        CancellationToken cancellationToken)
+        CancellationToken             cancellationToken)
     {
-        int created = 0, updated = 0;
-        var errors          = new List<string>();
-        var modulesToInvalidate = new HashSet<(string Module, string Lang)>();
+        var created = 0;
+        var updated = 0;
+        var errors  = new List<string>();
+        var moduleLangPairs = new HashSet<(string, string)>();
 
-        // Pre-load active languages for validation
+        // Pre-load active language codes
         var activeLangs = (await _languageRepo.GetAllActiveAsync(cancellationToken))
-            .Select(l => l.Id.Value)
+            .Select(l => l.Code.ToLowerInvariant())
             .ToHashSet();
 
         foreach (var item in request.Items)
         {
-            try
+            var codeResult = TranslationCode.From(item.Code);
+            if (codeResult.IsFailure) { errors.Add($"{item.Code}: {codeResult.Error.Message}"); continue; }
+
+            var langResult = LanguageCode.Create(item.LanguageCode);
+            if (langResult.IsFailure) { errors.Add($"{item.Code}/{item.LanguageCode}: {langResult.Error.Message}"); continue; }
+
+            var code = codeResult.Value;
+            var lang = langResult.Value;
+
+            if (!activeLangs.Contains(lang.Value.ToLowerInvariant()))
             {
-                var code = TranslationCode.From(item.Code);
-                var lang = LanguageCode.From(item.LanguageCode);
-
-                if (!activeLangs.Contains(lang.Value))
-                {
-                    errors.Add($"{item.Code}/{item.LanguageCode}: Language not found or inactive.");
-                    continue;
-                }
-
-                var existing = await _repository.FindAsync(code, lang, cancellationToken);
-                if (existing is null)
-                {
-                    var translation = Translation.Create(
-                        item.Code, item.LanguageCode, item.Text, item.Context, item.MaxLength);
-                    _repository.Add(translation);
-                    created++;
-                }
-                else
-                {
-                    existing.UpdateText(item.Text);
-                    existing.UpdateContext(item.Context);
-                    _repository.Update(existing);
-                    updated++;
-                }
-
-                modulesToInvalidate.Add((code.Module, lang.Value));
+                errors.Add($"{item.Code}/{lang.Value}: Language not found or inactive."); continue;
             }
-            catch (Exception ex)
+
+            var existing = await _translationRepo.FindAsync(code, lang, cancellationToken);
+            if (existing is null)
             {
-                errors.Add($"{item.Code}/{item.LanguageCode}: {ex.Message}");
+                var createResult = Translation.Create(
+                    SequentialGuid.NewSequentialGuidAtEnd(),
+                    item.Code, item.LanguageCode, item.Text, item.Context, item.MaxLength);
+
+                if (createResult.IsFailure) { errors.Add($"{item.Code}: {createResult.Error.Message}"); continue; }
+
+                await _translationRepo.AddAsync(createResult.Value, cancellationToken);
+                created++;
             }
+            else
+            {
+                var updateResult = existing.UpdateText(item.Text);
+                if (updateResult.IsFailure) { errors.Add($"{item.Code}: {updateResult.Error.Message}"); continue; }
+
+                existing.UpdateContext(item.Context);
+                _translationRepo.Update(existing);
+                updated++;
+            }
+
+            moduleLangPairs.Add((code.Module, lang.Value));
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Invalidate cache for affected modules
-        foreach (var (module, lang) in modulesToInvalidate)
-            await _cache.RemoveAsync(CacheKeys.TranslationsModule(module, lang), cancellationToken);
+        // Invalidate module caches
+        foreach (var (module, lang) in moduleLangPairs)
+            await _cache.RemoveAsync(I18nCacheKeys.ModuleTranslations(module, lang), cancellationToken);
 
-        return new BulkUpsertResult(created, updated, errors);
+        return new BulkUpsertResultDto(created, updated, errors);
     }
 }

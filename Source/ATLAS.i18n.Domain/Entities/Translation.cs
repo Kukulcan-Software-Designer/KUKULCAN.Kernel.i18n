@@ -1,171 +1,176 @@
-using ATLAS.i18n.Domain.SeedWork;
-using ATLAS.i18n.Domain.ValueObjects;
-
 namespace ATLAS.i18n.Domain.Entities;
 
 /// <summary>
 /// Represents a single translated text entry in the ATLAS platform.
-/// 
-/// Each translation is uniquely identified by the combination of:
-///   - <see cref="Code"/>     → e.g. CRM0001, PIM0042, AUTH0010
-///   - <see cref="LanguageCode"/> → e.g. EN, ES
 ///
-/// English (EN) is the default language. Every text MUST have an English entry.
-/// Other languages are optional; the system falls back to English when a translation
-/// in the requested language is not found.
+/// <para>
+/// Each translation is uniquely identified by the combination of:
+/// <list type="bullet">
+///   <item><see cref="Code"/> — e.g. <c>CRM0001</c>, <c>PIM0042</c>, <c>CORE0001</c>.</item>
+///   <item><see cref="LanguageCode"/> — BCP-47 tag, e.g. <c>en-US</c>, <c>es-ES</c>.</item>
+/// </list>
+/// </para>
+///
+/// <para>
+/// <b>Fallback rule:</b> English (<c>en</c>) is the default language. Every text
+/// <b>must</b> have an English entry. The application layer resolves the
+/// <see cref="LanguageCode.FallbackChain"/> automatically when a translation is not
+/// found in the requested language.
+/// </para>
+///
+/// <para>
+/// Extends <see cref="AuditableEntityBase{TId}"/> from <c>Atlas.SharedKernel.Domain</c>
+/// so all audit fields are populated automatically by <c>AuditSaveChangesInterceptor</c>.
+/// Translations are <b>global</b> (not tenant-scoped) and support soft deletion is
+/// intentionally <b>not</b> implemented (translations may be removed physically via admin).
+/// </para>
 /// </summary>
-public sealed class Translation : AggregateRoot<Guid>, IAuditableEntity
+public sealed class Translation : AuditableEntityBase<Guid>
 {
+    // ── Properties ────────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Unique translation code in the format {MODULE}{NNNN}.
-    /// The module prefix identifies which ATLAS API owns this text.
-    /// Example values: CRM0001, PIM0042, WMS0100, AUTH0001, CORE0001.
+    /// Translation code in the format <c>{MODULE}{NNNN}</c>.
+    /// The module prefix identifies which ATLAS API owns this string.
     /// </summary>
     public TranslationCode Code { get; private set; } = null!;
 
-    /// <summary>ISO 639-1 language code for this translation entry.</summary>
+    /// <summary>
+    /// BCP-47 language tag (e.g. <c>es-ES</c>, <c>en-US</c>).
+    /// Stored as a <see cref="LanguageCode"/> value object from Atlas.SharedKernel.
+    /// </summary>
     public LanguageCode LanguageCode { get; private set; } = null!;
 
     /// <summary>
-    /// The translated text. May contain simple placeholders in the form {0}, {1}
-    /// that callers must replace at runtime. Example: "Welcome, {0}!"
+    /// The translated text. May contain positional placeholders (<c>{0}</c>, <c>{1}</c>)
+    /// that callers replace at runtime. Example: <c>"Welcome, {0}!"</c>
     /// </summary>
-    public string Text { get; private set; } = null!;
+    public string Text { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Optional free-text description that explains the context in which this
-    /// string appears, to help translators. Never exposed to end users.
+    /// Optional translator context — explains where and how this string is used in the UI.
+    /// Never shown to end users. Helps translators stay within UI constraints.
     /// </summary>
     public string? Context { get; private set; }
 
     /// <summary>
-    /// Maximum character length allowed for this string in the UI.
-    /// Null means no restriction. Helps translators stay within UI bounds.
+    /// Maximum allowed character length for this string in the UI.
+    /// <c>null</c> means unrestricted. Enforced on creation and update.
     /// </summary>
     public int? MaxLength { get; private set; }
 
     /// <summary>
-    /// Indicates whether this translation has been reviewed/approved by a human translator.
-    /// Unreviewed entries are still served but can be flagged in admin tools.
+    /// <c>true</c> when a human translator has reviewed and approved this text.
+    /// Any text update resets this to <c>false</c> automatically.
     /// </summary>
     public bool IsReviewed { get; private set; }
 
-    public DateTime CreatedAt { get; private set; }
-    public DateTime UpdatedAt { get; private set; }
+    // ── EF Core constructor ───────────────────────────────────────────────────
 
-    // EF Core constructor
+    // ReSharper disable once UnusedMember.Local
     private Translation() { }
 
-    private Translation(
-        Guid id,
-        TranslationCode code,
-        LanguageCode languageCode,
-        string text,
-        string? context,
-        int? maxLength)
+    // ── Factory method ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a new <see cref="Translation"/> entry after validating all inputs.
+    /// </summary>
+    /// <param name="id">Sequential Guid — use <c>SequentialGuid.NewSequentialGuidAtEnd()</c>.</param>
+    /// <param name="rawCode">Translation code string, e.g. <c>"CRM0001"</c>.</param>
+    /// <param name="bcp47LanguageCode">BCP-47 language tag, e.g. <c>"es-ES"</c>.</param>
+    /// <param name="text">The translated text. Must not be empty.</param>
+    /// <param name="context">Optional translator context note.</param>
+    /// <param name="maxLength">Optional maximum character length.</param>
+    public static Result<Translation> Create(
+        Guid    id,
+        string  rawCode,
+        string  bcp47LanguageCode,
+        string  text,
+        string? context   = null,
+        int?    maxLength = null)
     {
-        Id           = id;
-        Code         = code;
-        LanguageCode = languageCode;
-        Text         = text;
-        Context      = context;
-        MaxLength    = maxLength;
-        IsReviewed   = false;
-        CreatedAt    = DateTime.UtcNow;
-        UpdatedAt    = DateTime.UtcNow;
+        var codeResult = TranslationCode.From(rawCode);
+        if (codeResult.IsFailure) return codeResult.Error;
 
-        AddDomainEvent(new TranslationCreatedEvent(id, code.Value, languageCode.Value));
-    }
+        var langResult = LanguageCode.Create(bcp47LanguageCode);
+        if (langResult.IsFailure) return langResult.Error;
 
-    /// <summary>Factory method — canonical way to create a new Translation.</summary>
-    public static Translation Create(
-        string code,
-        string languageCode,
-        string text,
-        string? context = null,
-        int? maxLength = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        if (string.IsNullOrWhiteSpace(text))
+            return Error.Validation("Translation.Text.Empty", "Translation text must not be empty.");
 
-        ValidateText(text, maxLength);
-
-        return new Translation(
-            Guid.NewGuid(),
-            TranslationCode.From(code),
-            ValueObjects.LanguageCode.From(languageCode),
-            text.Trim(),
-            context?.Trim(),
-            maxLength);
-    }
-
-    public void UpdateText(string newText)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(newText);
-        ValidateText(newText, MaxLength);
-
-        Text       = newText.Trim();
-        IsReviewed = false;   // Any text change resets review status
-        UpdatedAt  = DateTime.UtcNow;
-
-        AddDomainEvent(new TranslationTextUpdatedEvent(Id, Code.Value, LanguageCode.Value));
-    }
-
-    public void UpdateContext(string? context)
-    {
-        Context   = context?.Trim();
-        UpdatedAt = DateTime.UtcNow;
-    }
-
-    public void SetMaxLength(int? maxLength)
-    {
         if (maxLength.HasValue && maxLength.Value < 1)
-            throw new Exceptions.I18nDomainException(
-                "MaxLength must be a positive integer.");
+            return Error.Validation("Translation.MaxLength.Invalid", "MaxLength must be a positive integer.");
 
-        if (maxLength.HasValue && Text.Length > maxLength.Value)
-            throw new Exceptions.I18nDomainException(
-                $"Current text length ({Text.Length}) exceeds the new MaxLength ({maxLength.Value}).");
+        var trimmedText = text.Trim();
+        if (maxLength.HasValue && trimmedText.Length > maxLength.Value)
+            return Error.Validation(
+                "Translation.Text.ExceedsMaxLength",
+                $"Text length ({trimmedText.Length}) exceeds MaxLength ({maxLength.Value}).");
+
+        return new Translation
+        {
+            Id           = Guard.Against.Default(id, nameof(id)),
+            Code         = codeResult.Value,
+            LanguageCode = langResult.Value,
+            Text         = trimmedText,
+            Context      = context?.Trim(),
+            MaxLength    = maxLength,
+            IsReviewed   = false,
+        };
+    }
+
+    // ── Business methods ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Replaces the translation text. Automatically resets <see cref="IsReviewed"/> to
+    /// <c>false</c> since the new text requires re-approval.
+    /// </summary>
+    public Result UpdateText(string newText)
+    {
+        if (string.IsNullOrWhiteSpace(newText))
+            return Error.Validation("Translation.Text.Empty", "Translation text must not be empty.");
+
+        var trimmed = newText.Trim();
+
+        if (MaxLength.HasValue && trimmed.Length > MaxLength.Value)
+            return Error.Validation(
+                "Translation.Text.ExceedsMaxLength",
+                $"Text length ({trimmed.Length}) exceeds MaxLength ({MaxLength.Value}).");
+
+        Text       = trimmed;
+        IsReviewed = false;  // any change requires re-review
+        return Result.Ok();
+    }
+
+    /// <summary>Updates the translator context note.</summary>
+    public void UpdateContext(string? context)
+        => Context = context?.Trim();
+
+    /// <summary>
+    /// Changes or removes the maximum length constraint.
+    /// Fails if the new limit is smaller than the current text length.
+    /// </summary>
+    public Result SetMaxLength(int? maxLength)
+    {
+        if (maxLength.HasValue)
+        {
+            if (maxLength.Value < 1)
+                return Error.Validation("Translation.MaxLength.Invalid", "MaxLength must be a positive integer.");
+
+            if (Text.Length > maxLength.Value)
+                return Error.Validation(
+                    "Translation.MaxLength.TooSmall",
+                    $"Cannot set MaxLength to {maxLength.Value}: " +
+                    $"current text length is {Text.Length}.");
+        }
 
         MaxLength = maxLength;
-        UpdatedAt = DateTime.UtcNow;
+        return Result.Ok();
     }
 
-    public void MarkAsReviewed()
-    {
-        IsReviewed = true;
-        UpdatedAt  = DateTime.UtcNow;
-    }
+    /// <summary>Marks this translation as reviewed by a human translator.</summary>
+    public void MarkAsReviewed() => IsReviewed = true;
 
-    public void MarkAsUnreviewed()
-    {
-        IsReviewed = false;
-        UpdatedAt  = DateTime.UtcNow;
-    }
-
-    // ─── Private helpers ──────────────────────────────────────────────────────
-
-    private static void ValidateText(string text, int? maxLength)
-    {
-        if (maxLength.HasValue && text.Trim().Length > maxLength.Value)
-            throw new Exceptions.I18nDomainException(
-                $"Text length ({text.Trim().Length}) exceeds MaxLength ({maxLength.Value}).");
-    }
-}
-
-// ─── Domain Events ────────────────────────────────────────────────────────────
-
-public sealed record TranslationCreatedEvent(
-    Guid TranslationId,
-    string Code,
-    string LanguageCode) : IDomainEvent
-{
-    public DateTime OccurredOn { get; } = DateTime.UtcNow;
-}
-
-public sealed record TranslationTextUpdatedEvent(
-    Guid TranslationId,
-    string Code,
-    string LanguageCode) : IDomainEvent
-{
-    public DateTime OccurredOn { get; } = DateTime.UtcNow;
+    /// <summary>Removes the reviewed status (e.g. after a source-language update).</summary>
+    public void MarkAsUnreviewed() => IsReviewed = false;
 }
