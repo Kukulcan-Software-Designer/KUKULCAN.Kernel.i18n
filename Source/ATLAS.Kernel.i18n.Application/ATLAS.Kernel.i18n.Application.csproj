@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>ATLAS.Kernel.i18n.Application</RootNamespace>
+    <AssemblyName>ATLAS.Kernel.i18n.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ATLAS.Kernel.i18n.Domain\ATLAS.Kernel.i18n.Domain.csproj" />
+    <!--
+      Atlas.Kernel.Infrastructure provides:
+        - ValidationBehavior, LoggingBehavior, CachingBehavior, TenantBehavior (MediatR)
+        - PagedResult<T>, PaginationRequest, SortOrder
+        - SequentialGuid, collection/string/datetime extensions
+      Atlas.Kernel.Domain provides Result<T>, Error, ValueObject, Guard, etc.
+      Atlas.Kernel.Abstractions provides ICacheService, IUnitOfWork, ICurrentUser, etc.
+    -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FluentValidation for command/query validators -->
+    <PackageReference Include="FluentValidation" Version="12.*" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.*" />
+    <!-- MediatR is already transitively available via Kernel.Infrastructure -->
+    <PackageReference Include="ATLAS.Kernel" Version="2.0.3" />
+  </ItemGroup>
+
+</Project>
