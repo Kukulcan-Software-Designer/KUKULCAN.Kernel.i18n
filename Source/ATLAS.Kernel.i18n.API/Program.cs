@@ -1,9 +1,6 @@
-using ATLAS.Kernel.i18n.API.Extensions;
-using ATLAS.Kernel.i18n.API.Middleware;
-using ATLAS.Kernel.i18n.Application;
+using ATLAS.Kernel.i18n.API.Startup;
 using ATLAS.Kernel.i18n.Infrastructure;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Scalar.AspNetCore;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 
 // ── Bootstrap logger (before DI is built) ────────────────────────────────────
@@ -32,12 +29,7 @@ try
     builder.Host.UseWindowsService(opts => opts.ServiceName = "ATLAS.Kernel.i18n");
     builder.Host.UseSystemd();
 
-    // ── Application + Infrastructure layers ───────────────────────────────────
-    builder.Services.AddAtlasI18NApplication();
-    builder.Services.AddAtlasI18nInfrastructure(builder.Configuration);
-
-    // ── API layer ──────────────────────────────────────────────────────────────
-    builder.Services.AddAtlasI18nApi(builder.Configuration);
+    AppStartup.ConfigureServices(builder);
 
     // ──────────────────────────────────────────────────────────────────────────
     var app = builder.Build();
@@ -50,32 +42,10 @@ try
         Log.Information("Migrations applied.");
     }
 
-    // ── Middleware pipeline ────────────────────────────────────────────────────
-    app.UseMiddleware<ExceptionHandlingMiddleware>();
-
     app.UseSerilogRequestLogging(opts =>
         opts.MessageTemplate =
             "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.000}ms");
-
-    if (app.Environment.IsDevelopment())
-    {
-        app.MapOpenApi();
-        app.MapScalarApiReference(opts =>
-        {
-            opts.Title = "ATLAS.Kernel.i18n";
-            opts.Theme = Scalar.AspNetCore.ScalarTheme.Purple;
-            opts.DefaultHttpClient = (ScalarTarget.CSharp, ScalarClient.HttpClient);
-        });
-    }
-
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    app.MapControllers();
-
-    app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => true });
-    app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("live") });
-    app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("ready") });
+    AppStartup.ConfigurePipeline(app);
 
     Log.Information("ATLAS.Kernel.i18n ready on {Urls}", string.Join(", ", app.Urls));
 
