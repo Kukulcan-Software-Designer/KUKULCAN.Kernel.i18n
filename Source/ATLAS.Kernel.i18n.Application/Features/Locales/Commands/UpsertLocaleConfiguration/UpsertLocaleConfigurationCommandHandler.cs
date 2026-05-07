@@ -17,22 +17,20 @@ namespace ATLAS.Kernel.i18n.Application.Features.Locales.Commands.UpsertLocaleCo
 /// <param name="unitOfWork">The unit of work used to commit changes to the data store.</param>
 /// <param name="cache">The cache service used to invalidate locale configuration cache entries after updates.</param>
 public sealed class UpsertLocaleConfigurationCommandHandler(ILocaleConfigurationRepository repository, ILanguageRepository languageRepo,
-    IUnitOfWork unitOfWork, ICacheService cache) : IRequestHandler<UpsertLocaleConfigurationCommand, Result<LocaleConfigurationDto>>
+    IUnitOfWork unitOfWork, ICacheService cache)
+        : IRequestHandler<UpsertLocaleConfigurationCommand, Result<LocaleConfigurationDto>>
 {
     /// <summary>
-    /// Creates or updates the locale configuration for a specified language and returns the resulting configuration
-    /// data transfer object.
+    /// Handles the request.
     /// </summary>
-    /// <remarks>If the specified language does not exist, the operation returns a not found error. The method
-    /// ensures that locale configuration is either created or updated as appropriate for the given language.</remarks>
-    /// <param name="request">The command containing the language code and locale configuration details to create or update.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A result containing the locale configuration data transfer object if the operation succeeds; otherwise, a result
-    /// with an error describing the failure.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<LocaleConfigurationDto>> Handle(UpsertLocaleConfigurationCommand request, CancellationToken cancellationToken)
     {
         var langResult = LanguageCode.Create(request.LanguageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
         var lang = langResult.Value;
 
@@ -44,19 +42,16 @@ public sealed class UpsertLocaleConfigurationCommandHandler(ILocaleConfiguration
         var decSep = request.DecimalSeparator[0];
         var thousSep = request.ThousandsSeparator[0];
         var existing = await repository.GetByLanguageAsync(lang, cancellationToken);
-
         LocaleConfiguration config;
 
         if (existing is null)
         {
-            var createResult = LocaleConfiguration.Create(
-                SequentialGuid.NewSequentialGuidAtEnd(),
+            var createResult = LocaleConfiguration.Create(SequentialGuid.NewSequentialGuidAtEnd(),
                 request.LanguageCode, request.DateFormat, request.ShortDateFormat,
                 request.TimeFormat, request.DateTimeFormat, firstDay,
                 decSep, thousSep, request.DecimalPlaces, request.CurrencyDecimalPlaces);
-
-            if (createResult.IsFailure) return createResult.Error;
-
+            if (createResult.IsFailure)
+                return createResult.Error;
             await repository.AddAsync(createResult.Value, cancellationToken);
             config = createResult.Value;
         }
@@ -66,15 +61,13 @@ public sealed class UpsertLocaleConfigurationCommandHandler(ILocaleConfiguration
                 request.DateFormat, request.ShortDateFormat,
                 request.TimeFormat, request.DateTimeFormat, firstDay,
                 decSep, thousSep, request.DecimalPlaces, request.CurrencyDecimalPlaces);
-
-            if (updateResult.IsFailure) return updateResult.Error;
-
+            if (updateResult.IsFailure)
+                return updateResult.Error;
             repository.Update(existing);
             config = existing;
         }
-
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        await cache.RemoveAsync(I18nCacheKeys.LocaleConfig(lang.Value), cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.LocaleConfig(lang.Value), cancellationToken);
 
         return GetLocaleConfigurationQueryHandler.MapToDto(config);
     }

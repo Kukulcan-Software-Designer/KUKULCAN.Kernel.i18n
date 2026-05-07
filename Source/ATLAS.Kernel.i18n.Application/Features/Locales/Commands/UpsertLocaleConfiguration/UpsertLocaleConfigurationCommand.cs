@@ -20,15 +20,5 @@ namespace ATLAS.Kernel.i18n.Application.Features.Locales.Commands.UpsertLocaleCo
 /// <param name="ThousandsSeparator">El carácter utilizado como separador de miles, por ejemplo, "." o ",".</param>
 /// <param name="DecimalPlaces">El número de decimales que se deben mostrar para los valores numéricos. Debe ser mayor o igual a cero.</param>
 /// <param name="CurrencyDecimalPlaces">El número de decimales que se deben mostrar para los valores monetarios. Debe ser mayor o igual a cero.</param>
-public record UpsertLocaleConfigurationCommand(
-    string LanguageCode,
-    string DateFormat,
-    string ShortDateFormat,
-    string TimeFormat,
-    string DateTimeFormat,
-    string FirstDayOfWeek,
-    string DecimalSeparator,
-    string ThousandsSeparator,
-    int DecimalPlaces = 2,
-    int CurrencyDecimalPlaces = 2)
-    : IRequest<Result<LocaleConfigurationDto>>;
+public record UpsertLocaleConfigurationCommand(string LanguageCode, string DateFormat, string ShortDateFormat, string TimeFormat, string DateTimeFormat,
+    string FirstDayOfWeek, string DecimalSeparator, string ThousandsSeparator, int DecimalPlaces = 2, int CurrencyDecimalPlaces = 2) : IRequest<Result<LocaleConfigurationDto>>;

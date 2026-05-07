@@ -15,7 +15,7 @@ public record GetCurrencyFormatsQuery(string LanguageCode) : IRequest<Result<IRe
     /// </summary>
     /// <remarks>Use this key when accessing or storing currency format information in a cache to ensure
     /// language-specific data is correctly identified.</remarks>
-    public string CacheKey => I18nCacheKeys.CurrencyFormats(LanguageCode);
+    public string CacheKey => I18NCacheKeys.CurrencyFormats(LanguageCode);
 
     /// <summary>
     /// Gets the duration for which items are cached before expiration, if caching is enabled.

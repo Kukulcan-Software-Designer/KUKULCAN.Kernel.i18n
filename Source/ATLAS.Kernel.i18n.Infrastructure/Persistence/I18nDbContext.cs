@@ -1,5 +1,3 @@
-using ATLAS.Kernel.Database;
-using ATLAS.Kernel.Database.Configuration;
 using MediatR;
 using Microsoft.Extensions.Options;
 
@@ -34,19 +32,38 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence;
 /// Schema: <c>i18n</c> — isolated within the shared ATLAS database (or a dedicated DB).
 /// </para>
 /// </summary>
-public sealed class I18nDbContext(IOptions<AtlasDatabaseOptions> options, ITenantContext tenantContext, ICurrentUser currentUser,
+/// <param name="options">The options parameter.</param>
+/// <param name="tenantContext">The tenantContext parameter.</param>
+/// <param name="currentUser">The currentUser parameter.</param>
+/// <param name="dateTimeProvider">The dateTimeProvider parameter.</param>
+/// <param name="publisher">The publisher parameter.</param>
+public sealed class I18NDbContext(IOptions<AtlasDatabaseOptions> options, ITenantContext tenantContext, ICurrentUser currentUser,
     IDateTimeProvider dateTimeProvider, IPublisher publisher) : AtlasDbContextBase(options, tenantContext, currentUser, dateTimeProvider, publisher)
 {
 
     // ── DbSets ────────────────────────────────────────────────────────────────
-
+    /// <summary>
+    /// Executes this member.
+    /// </summary>
     public DbSet<Language> Languages => Set<Language>();
+    /// <summary>
+    /// Executes this member.
+    /// </summary>
     public DbSet<Translation> Translations => Set<Translation>();
+    /// <summary>
+    /// Executes this member.
+    /// </summary>
     public DbSet<LocaleConfiguration> LocaleConfigurations => Set<LocaleConfiguration>();
+    /// <summary>
+    /// Executes this member.
+    /// </summary>
     public DbSet<CurrencyFormat> CurrencyFormats => Set<CurrencyFormat>();
 
     // ── Model configuration ───────────────────────────────────────────────────
-
+    /// <summary>
+    /// Executes OnModelCreating.
+    /// </summary>
+    /// <param name="modelBuilder">The modelBuilder parameter.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Set default schema for all i18n tables

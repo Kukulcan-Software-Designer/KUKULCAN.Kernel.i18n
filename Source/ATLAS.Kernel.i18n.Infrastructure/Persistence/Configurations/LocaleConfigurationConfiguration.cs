@@ -4,9 +4,12 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence.Configurations;
 /// EF Core configuration for <see cref="LocaleConfiguration"/>.
 /// Maps locale formatting rules to the <c>i18n.LocaleConfigurations</c> table.
 /// </summary>
-public sealed class LocaleConfigurationConfiguration
-    : IEntityTypeConfiguration<LocaleConfiguration>
+public sealed class LocaleConfigurationConfiguration1 : IEntityTypeConfiguration<LocaleConfiguration>
 {
+    /// <summary>
+    /// Configures the entity type for <see cref="LocaleConfiguration"/>.
+    /// </summary>
+    /// <param name="builder">The builder to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<LocaleConfiguration> builder)
     {
         builder.ToTable("LocaleConfigurations");

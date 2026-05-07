@@ -14,7 +14,7 @@ namespace ATLAS.Kernel.i18n.Application.Features.Locales.Commands.UpsertLocaleCo
 public sealed class UpsertLocaleConfigurationCommandValidator : AbstractValidator<UpsertLocaleConfigurationCommand>
 {
     /// <summary>
-    /// 
+    /// Executes UpsertLocaleConfigurationCommandValidator.
     /// </summary>
     public UpsertLocaleConfigurationCommandValidator()
     {

@@ -8,19 +8,18 @@ namespace ATLAS.Kernel.i18n.Application.Features.Locales.Queries.GetAllLocaleCon
 /// Handles queries to retrieve all locale configuration records and returns them as data transfer objects.
 /// </summary>
 /// <param name="repository">The repository used to access locale configuration data.</param>
-public sealed class GetAllLocaleConfigurationsQueryHandler(ILocaleConfigurationRepository repository) : IRequestHandler<GetAllLocaleConfigurationsQuery, Result<IReadOnlyList<LocaleConfigurationDto>>>
+public sealed class GetAllLocaleConfigurationsQueryHandler(ILocaleConfigurationRepository repository)
+        : IRequestHandler<GetAllLocaleConfigurationsQuery, Result<IReadOnlyList<LocaleConfigurationDto>>>
 {
     /// <summary>
-    /// Handles the retrieval of all locale configuration records as data transfer objects.º
+    /// Handles the request.
     /// </summary>
-    /// <param name="request">The query object containing any parameters required to retrieve locale configurations.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a Result object with a read-only
-    /// list of LocaleConfigurationDto instances representing all locale configurations.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<IReadOnlyList<LocaleConfigurationDto>>> Handle(GetAllLocaleConfigurationsQuery request, CancellationToken cancellationToken)
     {
         var configs = await repository.GetAllAsync(cancellationToken);
-        return Result<IReadOnlyList<LocaleConfigurationDto>>.Ok(
-            [.. configs.Select(GetLocaleConfigurationQueryHandler.MapToDto)]);
+        return Result<IReadOnlyList<LocaleConfigurationDto>>.Ok([.. configs.Select(GetLocaleConfigurationQueryHandler.MapToDto)]);
     }
 }

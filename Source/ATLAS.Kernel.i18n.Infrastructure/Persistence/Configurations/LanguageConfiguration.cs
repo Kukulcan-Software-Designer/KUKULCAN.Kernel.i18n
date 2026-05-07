@@ -6,6 +6,10 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence.Configurations;
 /// </summary>
 public sealed class LanguageConfiguration : IEntityTypeConfiguration<Language>
 {
+    /// <summary>
+    /// Configures the entity type for <see cref="Language"/>.
+    /// </summary>
+    /// <param name="builder">The builder to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<Language> builder)
     {
         builder.ToTable("Languages");

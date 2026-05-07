@@ -81,14 +81,15 @@ public sealed class Translation : AuditableEntityBase<Guid>
     /// <param name="text">The translated text. Must not be empty.</param>
     /// <param name="context">Optional translator context note.</param>
     /// <param name="maxLength">Optional maximum character length.</param>
-    public static Result<Translation> Create(Guid id, string rawCode, string bcp47LanguageCode, string text,
-        string? context = null, int? maxLength = null)
+    public static Result<Translation> Create(Guid id, string rawCode, string bcp47LanguageCode, string text, string? context = null, int? maxLength = null)
     {
         var codeResult = TranslationCode.From(rawCode);
-        if (codeResult.IsFailure) return codeResult.Error;
+        if (codeResult.IsFailure)
+            return codeResult.Error;
 
         var langResult = LanguageCode.Create(bcp47LanguageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
         if (string.IsNullOrWhiteSpace(text))
             return Error.Validation("Translation.Text.Empty", "Translation text must not be empty.");
@@ -98,19 +99,18 @@ public sealed class Translation : AuditableEntityBase<Guid>
 
         var trimmedText = text.Trim();
         if (maxLength.HasValue && trimmedText.Length > maxLength.Value)
-            return Error.Validation(
-                "Translation.Text.ExceedsMaxLength",
+            return Error.Validation("Translation.Text.ExceedsMaxLength",
                 $"Text length ({trimmedText.Length}) exceeds MaxLength ({maxLength.Value}).");
 
         return new Translation
         {
-            Id           = Guard.Against.Default(id, nameof(id)),
-            Code         = codeResult.Value,
+            Id = Guard.Against.Default(id, nameof(id)),
+            Code = codeResult.Value,
             LanguageCode = langResult.Value,
-            Text         = trimmedText,
-            Context      = context?.Trim(),
-            MaxLength    = maxLength,
-            IsReviewed   = false,
+            Text = trimmedText,
+            Context = context?.Trim(),
+            MaxLength = maxLength,
+            IsReviewed = false,
         };
     }
 
@@ -128,18 +128,16 @@ public sealed class Translation : AuditableEntityBase<Guid>
         var trimmed = newText.Trim();
 
         if (MaxLength.HasValue && trimmed.Length > MaxLength.Value)
-            return Error.Validation(
-                "Translation.Text.ExceedsMaxLength",
+            return Error.Validation("Translation.Text.ExceedsMaxLength",
                 $"Text length ({trimmed.Length}) exceeds MaxLength ({MaxLength.Value}).");
 
-        Text       = trimmed;
+        Text = trimmed;
         IsReviewed = false;  // any change requires re-review
         return Result.Ok();
     }
 
     /// <summary>Updates the translator context note.</summary>
-    public void UpdateContext(string? context)
-        => Context = context?.Trim();
+    public void UpdateContext(string? context) => Context = context?.Trim();
 
     /// <summary>
     /// Changes or removes the maximum length constraint.
@@ -153,10 +151,8 @@ public sealed class Translation : AuditableEntityBase<Guid>
                 return Error.Validation("Translation.MaxLength.Invalid", "MaxLength must be a positive integer.");
 
             if (Text.Length > maxLength.Value)
-                return Error.Validation(
-                    "Translation.MaxLength.TooSmall",
-                    $"Cannot set MaxLength to {maxLength.Value}: " +
-                    $"current text length is {Text.Length}.");
+                return Error.Validation("Translation.MaxLength.TooSmall",
+                    $"Cannot set MaxLength to {maxLength.Value}: current text length is {Text.Length}.");
         }
 
         MaxLength = maxLength;

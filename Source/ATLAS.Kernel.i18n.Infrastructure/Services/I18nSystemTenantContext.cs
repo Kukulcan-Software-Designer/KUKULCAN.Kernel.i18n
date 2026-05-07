@@ -12,26 +12,26 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Services;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class I18nSystemTenantContext : ITenantContext
+public sealed class I18NSystemTenantContext : ITenantContext
 {
     /// <summary>
     /// Sentinel: no tenant. EF Core tenant filter is not applied to any i18n entity.
     /// </summary>
     public Guid TenantId => Guid.Empty;
     /// <summary>
-    /// 
+    /// Gets TenantCode.
     /// </summary>
     public string TenantCode => "SYSTEM";
     /// <summary>
-    /// 
+    /// Gets Locale.
     /// </summary>
     public string Locale => "en-US";
     /// <summary>
-    /// 
+    /// Gets TimeZoneId.
     /// </summary>
     public string TimeZoneId => "UTC";
     /// <summary>
-    /// 
+    /// Gets DefaultCurrencyCode.
     /// </summary>
     public string DefaultCurrencyCode => "USD";
     /// <summary>

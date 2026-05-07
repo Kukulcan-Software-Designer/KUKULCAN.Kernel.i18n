@@ -7,9 +7,9 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence.Configurations;
 public sealed class CurrencyFormatConfiguration : IEntityTypeConfiguration<CurrencyFormat>
 {
     /// <summary>
-    /// 
+    /// Configures the entity type for <see cref="CurrencyFormat"/>.
     /// </summary>
-    /// <param name="builder"></param>
+    /// <param name="builder">The builder to configure the entity type.</param>
     public void Configure(EntityTypeBuilder<CurrencyFormat> builder)
     {
         builder.ToTable("CurrencyFormats");

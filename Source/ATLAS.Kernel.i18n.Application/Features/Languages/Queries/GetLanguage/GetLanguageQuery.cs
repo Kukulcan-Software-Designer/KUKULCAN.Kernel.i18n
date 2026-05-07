@@ -16,7 +16,7 @@ public record GetLanguageQuery(string Code) : IRequest<Result<LanguageDto>>, ICa
     /// </summary>
     /// <remarks>Use this key to store or retrieve language-specific data from a cache. The value is generated
     /// based on the language code and is unique per language.</remarks>
-    public string CacheKey => I18nCacheKeys.Language(Code);
+    public string CacheKey => I18NCacheKeys.Language(Code);
 
     /// <summary>
     /// Gets the duration for which items are cached before expiration, if caching is enabled.

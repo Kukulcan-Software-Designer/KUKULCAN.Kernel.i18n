@@ -17,9 +17,6 @@
     <Project Path="Source/ATLAS.Kernel.i18n.Infrastructure/ATLAS.Kernel.i18n.Infrastructure.csproj" />
   </Folder>
 
-  <Folder Name="/Tests/">
-    <Project Path="Tests/ATLAS.Kernel.i18n.Application.Tests/ATLAS.Kernel.i18n.Application.Tests.csproj" />
-    <Project Path="Tests/ATLAS.Kernel.i18n.Domain.Tests/ATLAS.Kernel.i18n.Domain.Tests.csproj" />
-  </Folder>
+  <Folder Name="/Tests/" />
 
 </Solution>

@@ -1,5 +1,4 @@
 using ATLAS.Kernel.Database.Extensions;
-using ATLAS.Kernel.i18n.Domain.Interfaces.Repositories;
 using ATLAS.Kernel.i18n.Infrastructure.Caching;
 using ATLAS.Kernel.i18n.Infrastructure.Persistence;
 using ATLAS.Kernel.i18n.Infrastructure.Persistence.Repositories;
@@ -16,9 +15,17 @@ namespace ATLAS.Kernel.i18n.Infrastructure;
 /// </summary>
 public static class InfrastructureServiceRegistration
 {
-    public static IServiceCollection AddAtlasI18nInfrastructure(
-        this IServiceCollection services,
-        IConfiguration          configuration)
+    /// <summary>
+    /// Registers all services related to the Infrastructure layer, including:
+    ///   - DbContext and Unit of Work
+    ///   - Repositories
+    ///   - System services (current user, tenant context, date/time provider)
+    ///   - Caching (Redis or in-memory fallback)
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configuration"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddAtlasI18nInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // ── DbContext + IUnitOfWork (via SharedKernel extension) ───────────────
         //
@@ -28,19 +35,19 @@ public static class InfrastructureServiceRegistration
         //   ③ Registers IUnitOfWork → UnitOfWork<I18nDbContext> (scoped)
         //   ④ Registers SlowQueryInterceptor (singleton)
         //
-        services.AddAtlasDbContext<I18nDbContext>(configuration);
+        services.AddAtlasDbContext<I18NDbContext>(configuration);
 
         // ── Repositories ──────────────────────────────────────────────────────
-        services.AddScoped<ILanguageRepository,           LanguageRepository>();
-        services.AddScoped<ITranslationRepository,        TranslationRepository>();
+        services.AddScoped<ILanguageRepository, LanguageRepository>();
+        services.AddScoped<ITranslationRepository, TranslationRepository>();
         services.AddScoped<ILocaleConfigurationRepository, LocaleConfigurationRepository>();
-        services.AddScoped<ICurrencyFormatRepository,     CurrencyFormatRepository>();
+        services.AddScoped<ICurrencyFormatRepository, CurrencyFormatRepository>();
 
         // ── System services (ICurrentUser, ITenantContext, IDateTimeProvider) ──
         // i18n is a global service — no real tenant context needed
         services.AddHttpContextAccessor();
-        services.AddScoped<ICurrentUser,      HttpCurrentUser>();
-        services.AddSingleton<ITenantContext, I18nSystemTenantContext>();
+        services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        services.AddSingleton<ITenantContext, I18NSystemTenantContext>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         // ── Cache (ICacheService from SharedKernel.Abstractions) ──────────────
@@ -53,31 +60,29 @@ public static class InfrastructureServiceRegistration
     /// Applies EF Core migrations and seeds baseline data.
     /// Called once during application startup after the host is built.
     /// </summary>
-    public static async Task MigrateAndSeedAsync(
-        IServiceProvider  serviceProvider,
-        CancellationToken ct = default)
+    /// <param name="serviceProvider"></param>
+    /// <param name="ct"></param>
+    public static async Task MigrateAndSeedAsync(IServiceProvider serviceProvider, CancellationToken ct = default)
     {
         using var scope = serviceProvider.CreateScope();
-        var ctx         = scope.ServiceProvider.GetRequiredService<I18nDbContext>();
+        var ctx = scope.ServiceProvider.GetRequiredService<I18NDbContext>();
 
         await ctx.Database.MigrateAsync(ct);
-        await I18nSeedData.SeedAsync(ctx, ct);
+        await I18NSeedData.SeedAsync(ctx, ct);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static void RegisterCacheService(
-        IServiceCollection services,
-        IConfiguration     configuration)
+    private static void RegisterCacheService(IServiceCollection services, IConfiguration configuration)
     {
-        var redisConnection = configuration.GetConnectionString("Redis");
+        string? redisConnection = configuration.GetConnectionString("Redis");
 
         if (!string.IsNullOrWhiteSpace(redisConnection))
         {
             services.AddStackExchangeRedisCache(opts =>
             {
                 opts.Configuration = redisConnection;
-                opts.InstanceName   = "ATLAS.i18n:";
+                opts.InstanceName = "ATLAS.Kernel.i18n:";
             });
             services.AddMemoryCache();
             services.AddSingleton<ICacheService, DistributedCacheService>();

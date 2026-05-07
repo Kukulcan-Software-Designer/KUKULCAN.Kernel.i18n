@@ -33,7 +33,7 @@ try
     builder.Host.UseSystemd();
 
     // ── Application + Infrastructure layers ───────────────────────────────────
-    builder.Services.AddAtlasI18nApplication();
+    builder.Services.AddAtlasI18NApplication();
     builder.Services.AddAtlasI18nInfrastructure(builder.Configuration);
 
     // ── API layer ──────────────────────────────────────────────────────────────
@@ -62,8 +62,8 @@ try
         app.MapOpenApi();
         app.MapScalarApiReference(opts =>
         {
-            opts.Title             = "ATLAS.Kernel.i18n";
-            opts.Theme             = Scalar.AspNetCore.ScalarTheme.Purple;
+            opts.Title = "ATLAS.Kernel.i18n";
+            opts.Theme = Scalar.AspNetCore.ScalarTheme.Purple;
             opts.DefaultHttpClient = (ScalarTarget.CSharp, ScalarClient.HttpClient);
         });
     }
@@ -73,8 +73,8 @@ try
 
     app.MapControllers();
 
-    app.MapHealthChecks("/health",       new HealthCheckOptions { Predicate = _ => true });
-    app.MapHealthChecks("/health/live",  new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("live") });
+    app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => true });
+    app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("live") });
     app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("ready") });
 
     Log.Information("ATLAS.Kernel.i18n ready on {Urls}", string.Join(", ", app.Urls));

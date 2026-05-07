@@ -12,5 +12,8 @@ public interface ILanguageDomainService
     /// Returns <see cref="Error.NotFound"/> when <paramref name="newDefaultCode"/> does not exist,
     /// or <see cref="Error.Conflict"/> when the language is inactive.
     /// </summary>
+    /// <param name="newDefaultCode">The code of the new default language.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A <see cref="Result"/> indicating the success or failure of the operation.</returns>
     Task<Result> SetDefaultLanguageAsync(string newDefaultCode, CancellationToken ct = default);
 }
