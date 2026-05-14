@@ -3,7 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
-namespace ATLAS.Kernel.i18n.Infrastructure.Caching;
+namespace ATLAS.Kernel.i18n.Domain.Services;
 
 /// <summary>
 /// Implements <see cref="ICacheService"/> from <c>Atlas.SharedKernel.Abstractions</c>

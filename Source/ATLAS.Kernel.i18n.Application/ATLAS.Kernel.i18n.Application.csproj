@@ -25,10 +25,9 @@
 
   <ItemGroup>
     <!-- FluentValidation for command/query validators -->
-    <PackageReference Include="FluentValidation" Version="12.*" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.*" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <!-- MediatR is already transitively available via Kernel.Infrastructure -->
-    <PackageReference Include="ATLAS.Kernel" Version="2.0.3" />
   </ItemGroup>
 
 </Project>

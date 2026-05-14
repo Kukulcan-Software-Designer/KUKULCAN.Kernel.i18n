@@ -15,7 +15,7 @@ public static class ApiServiceExtensions
     /// <param name="services">The service collection to add the services to.</param>
     /// <param name="configuration">The application configuration.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddAtlasI18nApi(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAtlasI18NApi(this IServiceCollection services, IConfiguration configuration)
     {
         // ── Controllers ───────────────────────────────────────────────────────
         services.AddControllers()

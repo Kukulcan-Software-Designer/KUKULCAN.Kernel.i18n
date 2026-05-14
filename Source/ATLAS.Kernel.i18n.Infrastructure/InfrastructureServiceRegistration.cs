@@ -1,5 +1,5 @@
 using ATLAS.Kernel.Database.Extensions;
-using ATLAS.Kernel.i18n.Infrastructure.Caching;
+using ATLAS.Kernel.i18n.Domain.Services;
 using ATLAS.Kernel.i18n.Infrastructure.Persistence;
 using ATLAS.Kernel.i18n.Infrastructure.Persistence.Repositories;
 using ATLAS.Kernel.i18n.Infrastructure.Persistence.Seeds;
@@ -25,7 +25,7 @@ public static class InfrastructureServiceRegistration
     /// <param name="services"></param>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public static IServiceCollection AddAtlasI18nInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAtlasI18NInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // ── DbContext + IUnitOfWork (via SharedKernel extension) ───────────────
         //

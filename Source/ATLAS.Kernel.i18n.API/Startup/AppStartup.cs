@@ -12,8 +12,8 @@ public static class AppStartup
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
         builder.Services.AddAtlasI18NApplication();
-        builder.Services.AddAtlasI18nInfrastructure(builder.Configuration);
-        builder.Services.AddAtlasI18nApi(builder.Configuration);
+        builder.Services.AddAtlasI18NInfrastructure(builder.Configuration);
+        builder.Services.AddAtlasI18NApi(builder.Configuration);
     }
 
     public static void ConfigurePipeline(WebApplication app)

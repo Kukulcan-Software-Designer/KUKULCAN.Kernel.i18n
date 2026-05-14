@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "ATLAS.i18n.API": {
+    "ATLAS.Kernel.i18n.API": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {

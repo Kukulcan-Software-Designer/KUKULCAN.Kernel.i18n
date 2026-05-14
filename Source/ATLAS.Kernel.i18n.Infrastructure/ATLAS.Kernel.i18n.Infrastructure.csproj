@@ -30,8 +30,8 @@
       Database PROVIDER — PostgreSQL is the default for ATLAS.
       This package is intentionally referenced only here (per-module), never in SharedKernel.
     -->
-    <PackageReference Include="ATLAS.Kernel.Database" Version="0.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
+    <PackageReference Include="ATLAS.Kernel.Database" Version="0.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.10" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
 
     <!-- Distributed cache — Redis via StackExchange -->

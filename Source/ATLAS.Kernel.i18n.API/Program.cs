@@ -1,9 +1,11 @@
+using ATLAS.Kernel.i18n.API.Middleware;
 using ATLAS.Kernel.i18n.API.Startup;
 using ATLAS.Kernel.i18n.Infrastructure;
-using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Scalar.AspNetCore;
 using Serilog;
 
-// ── Bootstrap logger (before DI is built) ────────────────────────────────────
+// Bootstrap logger (before DI is built)
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -14,7 +16,7 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    // ── Serilog ────────────────────────────────────────────────────────────────
+    // Serilog
     builder.Host.UseSerilog((ctx, svc, cfg) =>
         cfg.ReadFrom.Configuration(ctx.Configuration)
            .ReadFrom.Services(svc)
@@ -25,16 +27,17 @@ try
                outputTemplate:
                "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}"));
 
-    // ── Windows Service + Linux systemd ────────────────────────────────────────
+    // Windows Service + Linux systemd
     builder.Host.UseWindowsService(opts => opts.ServiceName = "ATLAS.Kernel.i18n");
     builder.Host.UseSystemd();
 
+    // Application + Infrastructure layers
     AppStartup.ConfigureServices(builder);
 
-    // ──────────────────────────────────────────────────────────────────────────
+    //
     var app = builder.Build();
 
-    // ── Migration + Seed ───────────────────────────────────────────────────────
+    // Migration + Seed
     if (app.Configuration.GetValue("Database:AutoMigrate", defaultValue: false))
     {
         Log.Information("Applying database migrations…");
@@ -42,10 +45,35 @@ try
         Log.Information("Migrations applied.");
     }
 
+    //  Middleware pipeline
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
+
     app.UseSerilogRequestLogging(opts =>
         opts.MessageTemplate =
             "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.000}ms");
-    AppStartup.ConfigurePipeline(app);
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference(opts =>
+        {
+            opts.Title = "ATLAS.Kernel.i18n";
+            opts.Theme = ScalarTheme.Purple;
+            opts.DefaultHttpClient = new KeyValuePair<ScalarTarget, ScalarClient> (
+                ScalarTarget.CSharp,
+                ScalarClient.HttpClient);
+        });
+    }
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    // Health checks
+    app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => true });
+    app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("live") });
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = hc => hc.Tags.Contains("ready") });
 
     Log.Information("ATLAS.Kernel.i18n ready on {Urls}", string.Join(", ", app.Urls));
 

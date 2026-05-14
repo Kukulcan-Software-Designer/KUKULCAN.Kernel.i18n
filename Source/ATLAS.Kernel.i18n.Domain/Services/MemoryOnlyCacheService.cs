@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 
-namespace ATLAS.Kernel.i18n.Infrastructure.Caching;
+namespace ATLAS.Kernel.i18n.Domain.Services;
 
 /// <summary>
 /// In-process only cache — used when Redis is not configured.

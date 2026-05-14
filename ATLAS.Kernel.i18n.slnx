@@ -10,6 +10,9 @@
     <File Path="nuget.config" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/Source Client/">
+    <Project Path="SourceClient/ATLAS.Kernel.i18n.Client.csproj" />
+  </Folder>
   <Folder Name="/Source/">
     <Project Path="Source/ATLAS.Kernel.i18n.API/ATLAS.Kernel.i18n.API.csproj" />
     <Project Path="Source/ATLAS.Kernel.i18n.Application/ATLAS.Kernel.i18n.Application.csproj" />
