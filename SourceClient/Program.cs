@@ -14,7 +14,6 @@ IConfigurationRoot configuration = new ConfigurationBuilder()
 
 ApiSettings apiSettings = configuration.GetSection(ApiSettings.SectionKey).Get<ApiSettings>()
                           ?? throw new InvalidOperationException("Falta la sección 'Api' en appsettings.json");
-
 AtlasDatabaseSettings dbSettings = configuration.GetSection(AtlasDatabaseSettings.SectionKey).Get<AtlasDatabaseSettings>()
                                    ?? throw new InvalidOperationException("Falta la sección 'Atlas:Database' en appsettings.json");
 
