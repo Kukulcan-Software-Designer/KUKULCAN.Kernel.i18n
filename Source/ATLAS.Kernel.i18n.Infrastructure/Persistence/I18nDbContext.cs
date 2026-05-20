@@ -8,7 +8,7 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence;
 ///
 /// <para>
 /// Extends <see cref="AtlasDbContextBase"/> from
-/// <c>ATLAS.SharedKernel.Database</c>, which wires automatically:
+/// <c>ATLAS.Kernel.Database</c>, which wires automatically:
 /// <list type="bullet">
 ///   <item>Audit fields via <c>AuditSaveChangesInterceptor</c>.</item>
 ///   <item>Soft-delete conversion via <c>SoftDeleteInterceptor</c>.</item>
