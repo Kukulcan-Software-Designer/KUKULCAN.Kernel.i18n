@@ -1,25 +1,39 @@
 <Solution>
+  <!--
+    ATLAS.Kernel.i18n — Internationalization core library for the **ATLAS ERP** platform.
+    Solution format: .slnx (XML, .NET 9+ / Visual Studio 2022 17.12+)
+    Brand: TITÁN Software — Sostenemos lo que construyes.
+  -->
+
   <Folder Name="/Solution Items/">
-    <File Path=".dockerignore" />
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
     <File Path="Directory.Build.props" />
-    <File Path="docker-compose.yml" />
-    <File Path="Dockerfile" />
     <File Path="LICENSE" />
     <File Path="nuget.config" />
     <File Path="README.md" />
   </Folder>
+  
+  <Folder Name="/Solution Items/.github/" />
+  <Folder Name="/Solution Items/.github/workflows/">
+    <File Path=".github/workflows/delete-merged-branches.yml" />
+  </Folder>
+  
   <Folder Name="/Source/">
     <Project Path="Source/ATLAS.Kernel.i18n.API/ATLAS.Kernel.i18n.API.csproj" />
     <Project Path="Source/ATLAS.Kernel.i18n.Application/ATLAS.Kernel.i18n.Application.csproj" />
     <Project Path="Source/ATLAS.Kernel.i18n.Domain/ATLAS.Kernel.i18n.Domain.csproj" />
     <Project Path="Source/ATLAS.Kernel.i18n.Infrastructure/ATLAS.Kernel.i18n.Infrastructure.csproj" />
   </Folder>
+  
+  <Folder Name="/Source Client/">
+    <Project Path="SourceClient/ATLAS.Kernel.i18n.Client.csproj" />
+  </Folder>
 
   <Folder Name="/Tests/">
-    <Project Path="Tests/ATLAS.Kernel.i18n.Application.Tests/ATLAS.Kernel.i18n.Application.Tests.csproj" />
-    <Project Path="Tests/ATLAS.Kernel.i18n.Domain.Tests/ATLAS.Kernel.i18n.Domain.Tests.csproj" />
+    <Project Path="Tests/ATLAS.Kernel.i18n.API.IntegrationTests/ATLAS.Kernel.i18n.API.IntegrationTests.csproj" />
+    <Project Path="Tests/ATLAS.Kernel.i18n.Application.UnitTests/ATLAS.Kernel.i18n.Application.UnitTests.csproj" />
+    <Project Path="Tests/ATLAS.Kernel.i18n.Domain.UnitTests/ATLAS.Kernel.i18n.Domain.UnitTests.csproj" />
   </Folder>
 
 </Solution>

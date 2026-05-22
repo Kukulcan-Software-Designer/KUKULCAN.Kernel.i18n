@@ -11,26 +11,25 @@ namespace ATLAS.Kernel.i18n.Application.Features.Locales.Queries.GetLocaleConfig
 /// returned. This class is typically used within a CQRS pattern to separate query logic from command
 /// operations.</remarks>
 /// <param name="repository">The repository used to access locale configuration data.</param>
-public sealed class GetLocaleConfigurationQueryHandler(ILocaleConfigurationRepository repository) : IRequestHandler<GetLocaleConfigurationQuery, Result<LocaleConfigurationDto>>
+public sealed class GetLocaleConfigurationQueryHandler(ILocaleConfigurationRepository repository)
+        : IRequestHandler<GetLocaleConfigurationQuery, Result<LocaleConfigurationDto>>
 {
     /// <summary>
-    /// Handles the retrieval of locale configuration data for a specified language code.
+    /// Handles the request.
     /// </summary>
-    /// <param name="request">The query containing the language code for which to retrieve the locale configuration.</param>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>A result containing the locale configuration data as a LocaleConfigurationDto if found; otherwise, an error
-    /// indicating the reason for failure, such as not found or invalid language code.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<LocaleConfigurationDto>> Handle(GetLocaleConfigurationQuery request, CancellationToken cancellationToken)
     {
         var langResult = LanguageCode.Create(request.LanguageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
         var config = await repository.GetByLanguageAsync(langResult.Value, cancellationToken);
 
         return config is null
-            ? Error.NotFound(
-                "LocaleConfig.NotFound",
-                $"No locale configuration found for language '{request.LanguageCode}'.")
+            ? Error.NotFound("LocaleConfig.NotFound", $"No locale configuration found for language '{request.LanguageCode}'.")
             : MapToDto(config);
     }
 

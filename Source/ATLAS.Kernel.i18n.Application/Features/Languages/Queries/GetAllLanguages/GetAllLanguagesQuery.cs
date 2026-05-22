@@ -16,7 +16,7 @@ public record GetAllLanguagesQuery(bool ActiveOnly = true) : IRequest<Result<IRe
     /// <remarks>The returned cache key distinguishes between active-only and all languages, ensuring that
     /// cached results reflect the selected filter. Use this property when accessing or storing language data in a cache
     /// to maintain consistency with the filter applied.</remarks>
-    public string CacheKey => ActiveOnly ? I18nCacheKeys.LanguagesActive : I18nCacheKeys.LanguagesAll;
+    public string CacheKey => ActiveOnly ? I18NCacheKeys.LanguagesActive : I18NCacheKeys.LanguagesAll;
 
     /// <summary>
     /// Gets the duration for which items are cached before expiration, if caching is enabled.

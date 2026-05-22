@@ -3,12 +3,12 @@ using FluentValidation;
 namespace ATLAS.Kernel.i18n.Application.Features.Translations.Commands.BulkUpsertTranslations;
 
 /// <summary>
-/// 
+/// Represents the BulkUpsertTranslationsCommandValidator type.
 /// </summary>
 public sealed class BulkUpsertTranslationsCommandValidator : AbstractValidator<BulkUpsertTranslationsCommand>
 {
     /// <summary>
-    /// 
+    /// Executes BulkUpsertTranslationsCommandValidator.
     /// </summary>
     public BulkUpsertTranslationsCommandValidator()
     {

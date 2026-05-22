@@ -12,12 +12,8 @@ namespace ATLAS.Kernel.i18n.Application.Features.Languages.Commands.CreateLangua
 public sealed class CreateLanguageCommandValidator : AbstractValidator<CreateLanguageCommand>
 {
     /// <summary>
-    /// Initializes a new instance of the CreateLanguageCommandValidator class, configuring validation rules for
-    /// language creation commands.
+    /// Executes CreateLanguageCommandValidator.
     /// </summary>
-    /// <remarks>This validator enforces that the language code is a valid BCP-47 tag and that the name and
-    /// native name are provided and do not exceed 100 characters. Use this validator to ensure that language creation
-    /// requests meet the required format and constraints before processing.</remarks>
     public CreateLanguageCommandValidator()
     {
         RuleFor(x => x.Code)

@@ -1,5 +1,3 @@
-using ATLAS.Kernel.i18n.Domain.ValueObjects.Enums;
-
 namespace ATLAS.Kernel.i18n.Domain.Entities;
 
 /// <summary>
@@ -32,35 +30,51 @@ public sealed class LocaleConfiguration : AuditableEntityBase<Guid>
 {
     // ── Identity ──────────────────────────────────────────────────────────────
 
-    /// <summary>BCP-47 code of the language this configuration belongs to.</summary>
+    /// <summary>
+    /// BCP-47 code of the language this configuration belongs to.
+    /// </summary>
     public LanguageCode LanguageCode { get; private set; } = null!;
 
     // ── Date / Time ───────────────────────────────────────────────────────────
 
-    /// <summary>Full date pattern, e.g. <c>"MM/dd/yyyy"</c> (en-US) or <c>"dd/MM/yyyy"</c> (es-ES).</summary>
+    /// <summary>
+    /// Full date pattern, e.g. <c>"MM/dd/yyyy"</c> (en-US) or <c>"dd/MM/yyyy"</c> (es-ES).
+    /// </summary>
     public string DateFormat { get; private set; } = string.Empty;
 
     /// <summary>Short date pattern, e.g. <c>"M/d/yy"</c>.</summary>
     public string ShortDateFormat { get; private set; } = string.Empty;
 
-    /// <summary>Time pattern, e.g. <c>"h:mm tt"</c> (12-hour) or <c>"HH:mm"</c> (24-hour).</summary>
+    /// <summary>
+    /// Time pattern, e.g. <c>"h:mm tt"</c> (12-hour) or <c>"HH:mm"</c> (24-hour).
+    /// </summary>
     public string TimeFormat { get; private set; } = string.Empty;
 
-    /// <summary>Combined date-time pattern, e.g. <c>"MM/dd/yyyy h:mm tt"</c>.</summary>
+    /// <summary>
+    /// Combined date-time pattern, e.g. <c>"MM/dd/yyyy h:mm tt"</c>.
+    /// </summary>
     public string DateTimeFormat { get; private set; } = string.Empty;
 
-    /// <summary>First day of the calendar week for this locale.</summary>
+    /// <summary>
+    /// First day of the calendar week for this locale.
+    /// </summary>
     public FirstDayOfWeek FirstDayOfWeek { get; private set; }
 
     // ── Number formatting ─────────────────────────────────────────────────────
 
-    /// <summary>Decimal separator char: <c>'.'</c> (en-US) or <c>','</c> (es-ES, de-DE).</summary>
+    /// <summary>
+    /// Decimal separator char: <c>'.'</c> (en-US) or <c>','</c> (es-ES, de-DE).
+    /// </summary>
     public char DecimalSeparator { get; private set; }
 
-    /// <summary>Thousands grouping separator: <c>','</c> (en-US), <c>'.'</c> (es-ES), <c>' '</c> (fr-FR).</summary>
+    /// <summary>
+    /// Thousands grouping separator: <c>','</c> (en-US), <c>'.'</c> (es-ES), <c>' '</c> (fr-FR).
+    /// </summary>
     public char ThousandsSeparator { get; private set; }
 
-    /// <summary>Default decimal places for non-monetary numbers (typically 2).</summary>
+    /// <summary>
+    /// Default decimal places for non-monetary numbers (typically 2).
+    /// </summary>
     public int DecimalPlaces { get; private set; }
 
     /// <summary>
@@ -76,14 +90,27 @@ public sealed class LocaleConfiguration : AuditableEntityBase<Guid>
     private LocaleConfiguration() { }
 
     // ── Factory method ────────────────────────────────────────────────────────
-
-    /// <summary>Creates a new <see cref="LocaleConfiguration"/> with all formatting rules.</summary>
-    public static Result<LocaleConfiguration> Create(Guid id, string languageCode, string dateFormat, string shortDateFormat,
-        string timeFormat, string dateTimeFormat, FirstDayOfWeek firstDayOfWeek, char decimalSeparator, char thousandsSeparator,
-        int decimalPlaces = 2, int currencyDecimalPlaces = 2)
+    /// <summary>
+    /// Creates a new <see cref="LocaleConfiguration"/> with all formatting rules.
+    /// </summary>
+    /// <param name="id">The id parameter.</param>
+    /// <param name="languageCode">The languageCode parameter.</param>
+    /// <param name="dateFormat">The dateFormat parameter.</param>
+    /// <param name="shortDateFormat">The shortDateFormat parameter.</param>
+    /// <param name="timeFormat">The timeFormat parameter.</param>
+    /// <param name="dateTimeFormat">The dateTimeFormat parameter.</param>
+    /// <param name="firstDayOfWeek">The firstDayOfWeek parameter.</param>
+    /// <param name="decimalSeparator">The decimalSeparator parameter.</param>
+    /// <param name="thousandsSeparator">The thousandsSeparator parameter.</param>
+    /// <param name="decimalPlaces">The decimalPlaces parameter.</param>
+    /// <param name="currencyDecimalPlaces">The currencyDecimalPlaces parameter.</param>
+    /// <returns>The operation result.</returns>
+    public static Result<LocaleConfiguration> Create(Guid id, string languageCode, string dateFormat, string shortDateFormat, string timeFormat, string dateTimeFormat,
+        FirstDayOfWeek firstDayOfWeek, char decimalSeparator, char thousandsSeparator, int decimalPlaces = 2, int currencyDecimalPlaces = 2)
     {
         var langResult = LanguageCode.Create(languageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
         if (string.IsNullOrWhiteSpace(dateFormat))
             return Error.Validation("LocaleConfig.DateFormat.Empty", "DateFormat must not be empty.");
@@ -98,65 +125,64 @@ public sealed class LocaleConfiguration : AuditableEntityBase<Guid>
             return Error.Validation("LocaleConfig.DateTimeFormat.Empty", "DateTimeFormat must not be empty.");
 
         if (decimalSeparator == thousandsSeparator)
-            return Error.Validation(
-                "LocaleConfig.Separators.Conflict",
-                "DecimalSeparator and ThousandsSeparator must be different characters.");
+            return Error.Validation("LocaleConfig.Separators.Conflict", "DecimalSeparator and ThousandsSeparator must be different characters.");
 
         if (decimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "LocaleConfig.DecimalPlaces.OutOfRange",
-                $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
+            return Error.Validation("LocaleConfig.DecimalPlaces.OutOfRange", $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
 
         if (currencyDecimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "LocaleConfig.CurrencyDecimalPlaces.OutOfRange",
-                $"CurrencyDecimalPlaces must be between 0 and 10. Got: {currencyDecimalPlaces}.");
+            return Error.Validation("LocaleConfig.CurrencyDecimalPlaces.OutOfRange", $"CurrencyDecimalPlaces must be between 0 and 10. Got: {currencyDecimalPlaces}.");
 
         return new LocaleConfiguration
         {
-            Id                    = Guard.Against.Default(id, nameof(id)),
-            LanguageCode          = langResult.Value,
-            DateFormat            = dateFormat.Trim(),
-            ShortDateFormat       = shortDateFormat.Trim(),
-            TimeFormat            = timeFormat.Trim(),
-            DateTimeFormat        = dateTimeFormat.Trim(),
-            FirstDayOfWeek        = firstDayOfWeek,
-            DecimalSeparator      = decimalSeparator,
-            ThousandsSeparator    = thousandsSeparator,
-            DecimalPlaces         = decimalPlaces,
+            Id = Guard.Against.Default(id, nameof(id)),
+            LanguageCode = langResult.Value,
+            DateFormat = dateFormat.Trim(),
+            ShortDateFormat = shortDateFormat.Trim(),
+            TimeFormat = timeFormat.Trim(),
+            DateTimeFormat = dateTimeFormat.Trim(),
+            FirstDayOfWeek = firstDayOfWeek,
+            DecimalSeparator = decimalSeparator,
+            ThousandsSeparator = thousandsSeparator,
+            DecimalPlaces = decimalPlaces,
             CurrencyDecimalPlaces = currencyDecimalPlaces,
         };
     }
 
     // ── Business method ───────────────────────────────────────────────────────
-
-    /// <summary>Replaces all formatting values for this locale configuration.</summary>
+    /// <summary>
+    /// Replaces all formatting values for this locale configuration.
+    /// </summary>
+    /// <param name="dateFormat">The dateFormat parameter.</param>
+    /// <param name="shortDateFormat">The shortDateFormat parameter.</param>
+    /// <param name="timeFormat">The timeFormat parameter.</param>
+    /// <param name="dateTimeFormat">The dateTimeFormat parameter.</param>
+    /// <param name="firstDayOfWeek">The firstDayOfWeek parameter.</param>
+    /// <param name="decimalSeparator">The decimalSeparator parameter.</param>
+    /// <param name="thousandsSeparator">The thousandsSeparator parameter.</param>
+    /// <param name="decimalPlaces">The decimalPlaces parameter.</param>
+    /// <param name="currencyDecimalPlaces">The currencyDecimalPlaces parameter.</param>
+    /// <returns>The operation result.</returns>
     public Result Update(string dateFormat, string shortDateFormat, string timeFormat, string dateTimeFormat, FirstDayOfWeek firstDayOfWeek,
         char decimalSeparator, char thousandsSeparator, int decimalPlaces, int currencyDecimalPlaces)
     {
         if (decimalSeparator == thousandsSeparator)
-            return Error.Validation(
-                "LocaleConfig.Separators.Conflict",
-                "DecimalSeparator and ThousandsSeparator must be different characters.");
+            return Error.Validation("LocaleConfig.Separators.Conflict", "DecimalSeparator and ThousandsSeparator must be different characters.");
 
         if (decimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "LocaleConfig.DecimalPlaces.OutOfRange",
-                $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
+            return Error.Validation("LocaleConfig.DecimalPlaces.OutOfRange", $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
 
         if (currencyDecimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "LocaleConfig.CurrencyDecimalPlaces.OutOfRange",
-                $"CurrencyDecimalPlaces must be between 0 and 10. Got: {currencyDecimalPlaces}.");
+            return Error.Validation("LocaleConfig.CurrencyDecimalPlaces.OutOfRange", $"CurrencyDecimalPlaces must be between 0 and 10. Got: {currencyDecimalPlaces}.");
 
-        DateFormat            = Guard.Against.NullOrWhiteSpace(dateFormat, nameof(dateFormat)).Trim();
-        ShortDateFormat       = Guard.Against.NullOrWhiteSpace(shortDateFormat, nameof(shortDateFormat)).Trim();
-        TimeFormat            = Guard.Against.NullOrWhiteSpace(timeFormat, nameof(timeFormat)).Trim();
-        DateTimeFormat        = Guard.Against.NullOrWhiteSpace(dateTimeFormat, nameof(dateTimeFormat)).Trim();
-        FirstDayOfWeek        = firstDayOfWeek;
-        DecimalSeparator      = decimalSeparator;
-        ThousandsSeparator    = thousandsSeparator;
-        DecimalPlaces         = decimalPlaces;
+        DateFormat = Guard.Against.NullOrWhiteSpace(dateFormat, nameof(dateFormat)).Trim();
+        ShortDateFormat = Guard.Against.NullOrWhiteSpace(shortDateFormat, nameof(shortDateFormat)).Trim();
+        TimeFormat = Guard.Against.NullOrWhiteSpace(timeFormat, nameof(timeFormat)).Trim();
+        DateTimeFormat = Guard.Against.NullOrWhiteSpace(dateTimeFormat, nameof(dateTimeFormat)).Trim();
+        FirstDayOfWeek = firstDayOfWeek;
+        DecimalSeparator = decimalSeparator;
+        ThousandsSeparator = thousandsSeparator;
+        DecimalPlaces = decimalPlaces;
         CurrencyDecimalPlaces = currencyDecimalPlaces;
         return Result.Ok();
     }

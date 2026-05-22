@@ -3,12 +3,12 @@ using FluentValidation;
 namespace ATLAS.Kernel.i18n.Application.Features.Translations.Queries.GetTranslationsByModule;
 
 /// <summary>
-/// 
+/// Represents the GetTranslationsByModuleQueryValidator type.
 /// </summary>
 public sealed class GetTranslationsByModuleQueryValidator : AbstractValidator<GetTranslationsByModuleQuery>
 {
     /// <summary>
-    /// 
+    /// Executes GetTranslationsByModuleQueryValidator.
     /// </summary>
     public GetTranslationsByModuleQueryValidator()
     {

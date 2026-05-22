@@ -10,17 +10,15 @@ namespace ATLAS.Kernel.i18n.Application.Features.Languages.Commands.SetLanguageA
 /// unit of work for transactional consistency, and a cache service for cache management. The handler returns a result
 /// indicating the outcome of the operation, including error information if the language is not found or if deactivation
 /// is not allowed due to business rules.</remarks>
-public sealed class SetLanguageActiveCommandHandler(ILanguageRepository repository, IUnitOfWork unitOfWork, ICacheService cache) : IRequestHandler<SetLanguageActiveCommand, Result>
+public sealed class SetLanguageActiveCommandHandler(ILanguageRepository repository, IUnitOfWork unitOfWork, ICacheService cache) :
+    IRequestHandler<SetLanguageActiveCommand, Result>
 {
     /// <summary>
-    /// Handles the activation or deactivation of a language based on the specified command.
+    /// Handles the request.
     /// </summary>
-    /// <remarks>If the language is deactivated and it is the default language, the operation will fail with a
-    /// conflict result. The method also updates the language cache to reflect the changes.</remarks>
-    /// <param name="request">The command containing the language code and the desired active state. Cannot be null.</param>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>A result indicating the outcome of the operation. Returns an error result if the language is not found or if
-    /// deactivation is not allowed.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result> Handle(SetLanguageActiveCommand request, CancellationToken cancellationToken)
     {
         var language = await repository.GetByCodeAsync(request.Code, cancellationToken);
@@ -37,15 +35,13 @@ public sealed class SetLanguageActiveCommandHandler(ILanguageRepository reposito
         {
             opResult = language.Deactivate(); // returns Conflict if IsDefault
         }
-
-        if (opResult.IsFailure) return opResult.Error;
-
+        if (opResult.IsFailure)
+            return opResult.Error;
         repository.Update(language);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        await cache.RemoveAsync(I18nCacheKeys.Language(request.Code), cancellationToken);
-        await cache.RemoveAsync(I18nCacheKeys.LanguagesAll, cancellationToken);
-        await cache.RemoveAsync(I18nCacheKeys.LanguagesActive, cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.Language(request.Code), cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.LanguagesAll, cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.LanguagesActive, cancellationToken);
 
         return Result.Ok();
     }

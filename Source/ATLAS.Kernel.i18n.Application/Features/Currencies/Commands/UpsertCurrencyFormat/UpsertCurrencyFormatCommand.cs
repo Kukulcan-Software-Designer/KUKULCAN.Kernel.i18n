@@ -23,15 +23,5 @@ namespace ATLAS.Kernel.i18n.Application.Features.Currencies.Commands.UpsertCurre
 /// <param name="DecimalPlaces">El número de decimales que se mostrarán en los importes. Debe ser mayor o igual que cero.</param>
 /// <param name="NegativePattern">El patrón de formato utilizado para mostrar importes negativos. Puede incluir los marcadores '{symbol}' y
 /// '{amount}'. El valor predeterminado es "-{symbol}{amount}".</param>
-public record UpsertCurrencyFormatCommand(
-    string LanguageCode,
-    string CurrencyCode,
-    string CurrencyName,
-    string Symbol,
-    string SymbolPosition,
-    bool SpaceBetweenSymbolAndAmount,
-    string DecimalSeparator,
-    string ThousandsSeparator,
-    int DecimalPlaces,
-    string NegativePattern = "-{symbol}{amount}")
-    : IRequest<Result<CurrencyFormatDto>>;
+public record UpsertCurrencyFormatCommand(string LanguageCode, string CurrencyCode, string CurrencyName, string Symbol, string SymbolPosition, bool SpaceBetweenSymbolAndAmount,
+    string DecimalSeparator, string ThousandsSeparator, int DecimalPlaces, string NegativePattern = "-{symbol}{amount}") : IRequest<Result<CurrencyFormatDto>>;

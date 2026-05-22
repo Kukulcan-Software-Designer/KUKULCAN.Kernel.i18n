@@ -37,7 +37,7 @@ public sealed class Language : MasterEntity<Guid>
     // ── Properties ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// BCP-47 language tag, normalised to lowercase-UPPERCASE (e.g. <c>es-ES</c>, <c>en-US</c>).
+    /// BCP-47 language tag, normalized to lowercase-UPPERCASE (e.g. <c>es-ES</c>, <c>en-US</c>).
     /// Unique within the system. Used as the business identifier for lookups.
     /// </summary>
     public string Code { get; private set; } = string.Empty;
@@ -85,7 +85,8 @@ public sealed class Language : MasterEntity<Guid>
     public static Result<Language> Create(Guid id, string bcp47Code, string name, string nativeName, bool isDefault = false)
     {
         var codeResult = LanguageCode.Create(bcp47Code);
-        if (codeResult.IsFailure) return codeResult.Error;
+        if (codeResult.IsFailure)
+            return codeResult.Error;
 
         if (string.IsNullOrWhiteSpace(name))
             return Error.Validation("Language.Name.Empty", "Language name must not be empty.");
@@ -95,11 +96,11 @@ public sealed class Language : MasterEntity<Guid>
 
         return new Language
         {
-            Id         = Guard.Against.Default(id, nameof(id)),
-            Code       = codeResult.Value.Value,
-            Name       = name.Trim(),
+            Id = Guard.Against.Default(id, nameof(id)),
+            Code = codeResult.Value.Value,
+            Name = name.Trim(),
             NativeName = nativeName.Trim(),
-            IsDefault  = isDefault,
+            IsDefault = isDefault,
         };
     }
 
@@ -113,7 +114,7 @@ public sealed class Language : MasterEntity<Guid>
         if (string.IsNullOrWhiteSpace(nativeName))
             return Error.Validation("Language.NativeName.Empty", "Native name must not be empty.");
 
-        Name       = name.Trim();
+        Name = name.Trim();
         NativeName = nativeName.Trim();
         return Result.Ok();
     }
@@ -125,10 +126,8 @@ public sealed class Language : MasterEntity<Guid>
     public new Result Deactivate()
     {
         if (IsDefault)
-            return Error.Conflict(
-                "Language.Default.CannotDeactivate",
-                $"Language '{Code}' is the platform default and cannot be deactivated. " +
-                "Transfer the default to another language first.");
+            return Error.Conflict("Language.Default.CannotDeactivate",
+                $"Language '{Code}' is the platform default and cannot be deactivated. Transfer the default to another language first.");
 
         base.Deactivate();
         return Result.Ok();
@@ -141,7 +140,7 @@ public sealed class Language : MasterEntity<Guid>
     internal void MarkAsDefault()
     {
         IsDefault = true;
-        base.Activate(); // default language must always be active
+        Activate(); // default language must always be active
     }
 
     /// <summary>
@@ -166,10 +165,8 @@ public sealed class Language : MasterEntity<Guid>
         Guard.Against.Null(format, nameof(format));
 
         if (_currencyFormats.Any(c => c.CurrencyCode == format.CurrencyCode))
-            return Error.Conflict(
-                "Language.CurrencyFormat.Duplicate",
+            return Error.Conflict("Language.CurrencyFormat.Duplicate",
                 $"A currency format for '{format.CurrencyCode}' already exists in language '{Code}'.");
-
         _currencyFormats.Add(format);
         return Result.Ok();
     }
@@ -181,10 +178,8 @@ public sealed class Language : MasterEntity<Guid>
             c => c.CurrencyCode.Equals(currencyCode, StringComparison.OrdinalIgnoreCase));
 
         if (format is null)
-            return Error.NotFound(
-                "Language.CurrencyFormat.NotFound",
+            return Error.NotFound("Language.CurrencyFormat.NotFound",
                 $"No currency format for '{currencyCode}' found in language '{Code}'.");
-
         _currencyFormats.Remove(format);
         return Result.Ok();
     }

@@ -7,7 +7,17 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Services;
 public sealed class SystemDateTimeProvider : IDateTimeProvider
 {
     /// <summary>
-    /// 
+    /// Gets UtcNow.
     /// </summary>
     public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Gets Today.
+    /// </summary>
+    public DateOnly Today { get; }
+
+    /// <summary>
+    /// Gets UnixTimestampSeconds.
+    /// </summary>
+    public long UnixTimestampSeconds { get; }
 }

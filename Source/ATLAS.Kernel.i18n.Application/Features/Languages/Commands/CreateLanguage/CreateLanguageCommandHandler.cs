@@ -17,33 +17,24 @@ namespace ATLAS.Kernel.i18n.Application.Features.Languages.Commands.CreateLangua
 public sealed class CreateLanguageCommandHandler(ILanguageRepository repository, IUnitOfWork unitOfWork, ICacheService cache) : IRequestHandler<CreateLanguageCommand, Result<LanguageDto>>
 {
     /// <summary>
-    /// Handles the creation of a new language based on the specified command.
+    /// Handles the request.
     /// </summary>
-    /// <remarks>Returns a conflict error if a language with the specified code already exists. The operation
-    /// is performed asynchronously and persists changes to the underlying data store.</remarks>
-    /// <param name="request">The command containing the details of the language to create. Must not be null.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A result containing the data transfer object for the newly created language if successful; otherwise, an error
-    /// result indicating the reason for failure, such as a duplicate language code.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<LanguageDto>> Handle(CreateLanguageCommand request, CancellationToken cancellationToken)
     {
         if (await repository.ExistsByCodeAsync(request.Code, cancellationToken))
-            return Error.Conflict(
-                "Language.Duplicate",
-                $"Language '{request.Code}' already exists.");
+            return Error.Conflict("Language.Duplicate", $"Language '{request.Code}' already exists.");
 
-        var createResult = Language.Create(
-            SequentialGuid.NewSequentialGuidAtEnd(),
-            request.Code,
-            request.Name,
-            request.NativeName,
-            request.IsDefault);
+        var createResult = Language.Create(SequentialGuid.NewSequentialGuidAtEnd(), request.Code, request.Name,
+            request.NativeName, request.IsDefault);
 
-        if (createResult.IsFailure) return createResult.Error;
+        if (createResult.IsFailure)
+            return createResult.Error;
 
         await repository.AddAsync(createResult.Value, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
         await InvalidateLanguageCachesAsync(cancellationToken);
 
         return GetAllLanguagesQueryHandler.MapToDto(createResult.Value);
@@ -51,7 +42,7 @@ public sealed class CreateLanguageCommandHandler(ILanguageRepository repository,
 
     private async Task InvalidateLanguageCachesAsync(CancellationToken ct)
     {
-        await cache.RemoveAsync(I18nCacheKeys.LanguagesAll, ct);
-        await cache.RemoveAsync(I18nCacheKeys.LanguagesActive, ct);
+        await cache.RemoveAsync(I18NCacheKeys.LanguagesAll, ct);
+        await cache.RemoveAsync(I18NCacheKeys.LanguagesActive, ct);
     }
 }

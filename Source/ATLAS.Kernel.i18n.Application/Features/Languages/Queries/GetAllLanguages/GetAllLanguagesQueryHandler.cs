@@ -10,14 +10,15 @@ namespace ATLAS.Kernel.i18n.Application.Features.Languages.Queries.GetAllLanguag
 /// the query parameters. The result contains a read-only list of language data transfer objects suitable for client
 /// consumption.</remarks>
 /// <param name="repository">The repository used to access language data.</param>
-public sealed class GetAllLanguagesQueryHandler(ILanguageRepository repository) : IRequestHandler<GetAllLanguagesQuery, Result<IReadOnlyList<LanguageDto>>>
+public sealed class GetAllLanguagesQueryHandler(ILanguageRepository repository)
+        : IRequestHandler<GetAllLanguagesQuery, Result<IReadOnlyList<LanguageDto>>>
 {
     /// <summary>
-    /// 
+    /// Handles the request.
     /// </summary>
-    /// <param name="request"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<IReadOnlyList<LanguageDto>>> Handle(GetAllLanguagesQuery request, CancellationToken cancellationToken)
     {
         var languages = request.ActiveOnly
@@ -25,7 +26,7 @@ public sealed class GetAllLanguagesQueryHandler(ILanguageRepository repository) 
             : await repository.ListAllAsync(cancellationToken);
 
         return Result<IReadOnlyList<LanguageDto>>.Ok(
-            [.. languages.Select(MapToDto)]);
+            languages.Select(MapToDto).ToList());
     }
 
     internal static LanguageDto MapToDto(Language l) =>

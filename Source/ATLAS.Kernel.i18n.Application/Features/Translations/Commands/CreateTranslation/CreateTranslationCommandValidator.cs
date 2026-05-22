@@ -3,12 +3,12 @@ using FluentValidation;
 namespace ATLAS.Kernel.i18n.Application.Features.Translations.Commands.CreateTranslation;
 
 /// <summary>
-/// 
+/// Represents the CreateTranslationCommandValidator type.
 /// </summary>
 public sealed class CreateTranslationCommandValidator : AbstractValidator<CreateTranslationCommand>
 {
     /// <summary>
-    /// 
+    /// Executes CreateTranslationCommandValidator.
     /// </summary>
     public CreateTranslationCommandValidator()
     {

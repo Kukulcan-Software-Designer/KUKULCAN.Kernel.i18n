@@ -1,5 +1,3 @@
-using ATLAS.Kernel.i18n.Domain.ValueObjects.Enums;
-
 namespace ATLAS.Kernel.i18n.Domain.Entities;
 
 /// <summary>
@@ -23,20 +21,28 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
 {
     // ── Identity ──────────────────────────────────────────────────────────────
 
-    /// <summary>BCP-47 code of the language this format applies to (e.g. <c>es-ES</c>).</summary>
+    /// <summary>
+    /// BCP-47 code of the language this format applies to (e.g. <c>es-ES</c>).
+    /// </summary>
     public LanguageCode LanguageCode { get; private set; } = null!;
 
     // ── Currency identification ───────────────────────────────────────────────
 
-    /// <summary>ISO 4217 three-letter currency code (e.g. <c>"USD"</c>, <c>"EUR"</c>, <c>"GBP"</c>).</summary>
+    /// <summary>
+    /// ISO 4217 three-letter currency code (e.g. <c>"USD"</c>, <c>"EUR"</c>, <c>"GBP"</c>).
+    /// </summary>
     public string CurrencyCode { get; private set; } = string.Empty;
 
-    /// <summary>Full currency name in the target language (e.g. <c>"Dólar estadounidense"</c>).</summary>
+    /// <summary>
+    /// Full currency name in the target language (e.g. <c>"Dólar estadounidense"</c>).
+    /// </summary>
     public string CurrencyName { get; private set; } = string.Empty;
 
     // ── Symbol formatting ─────────────────────────────────────────────────────
 
-    /// <summary>Currency symbol: <c>"$"</c>, <c>"€"</c>, <c>"£"</c>, <c>"¥"</c>…</summary>
+    /// <summary>
+    /// Currency symbol: <c>"$"</c>, <c>"€"</c>, <c>"£"</c>, <c>"¥"</c>…
+    /// </summary>
     public string Symbol { get; private set; } = string.Empty;
 
     /// <summary>
@@ -54,10 +60,14 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
 
     // ── Number formatting ─────────────────────────────────────────────────────
 
-    /// <summary>Decimal separator for this currency in this language.</summary>
+    /// <summary>
+    /// Decimal separator for this currency in this language.
+    /// </summary>
     public char DecimalSeparator { get; private set; }
 
-    /// <summary>Thousands grouping separator for this currency in this language.</summary>
+    /// <summary>
+    /// Thousands grouping separator for this currency in this language.
+    /// </summary>
     public char ThousandsSeparator { get; private set; }
 
     /// <summary>
@@ -85,21 +95,30 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
     private CurrencyFormat() { }
 
     // ── Factory method ────────────────────────────────────────────────────────
-
-    /// <summary>Creates a new <see cref="CurrencyFormat"/> entry after full validation.</summary>
-    public static Result<CurrencyFormat> Create(Guid id, string languageCode, string currencyCode, string currencyName, string symbol,
-        CurrencySymbolPosition symbolPosition, bool spaceBetweenSymbolAndAmount, char decimalSeparator, char thousandsSeparator,
-        int decimalPlaces, string negativePattern = "-{symbol}{amount}")
+    /// <summary>
+    /// Creates a new <see cref="CurrencyFormat"/> entry after full validation.
+    /// </summary>
+    /// <param name="id">The id parameter.</param>
+    /// <param name="languageCode">The languageCode parameter.</param>
+    /// <param name="currencyCode">The currencyCode parameter.</param>
+    /// <param name="currencyName">The currencyName parameter.</param>
+    /// <param name="symbol">The symbol parameter.</param>
+    /// <param name="symbolPosition">The symbolPosition parameter.</param>
+    /// <param name="spaceBetweenSymbolAndAmount">The spaceBetweenSymbolAndAmount parameter.</param>
+    /// <param name="decimalSeparator">The decimalSeparator parameter.</param>
+    /// <param name="thousandsSeparator">The thousandsSeparator parameter.</param>
+    /// <param name="decimalPlaces">The decimalPlaces parameter.</param>
+    /// <param name="negativePattern">The negativePattern parameter.</param>
+    /// <returns>The operation result.</returns>
+    public static Result<CurrencyFormat> Create(Guid id, string languageCode,  string currencyCode, string currencyName, string symbol,
+        CurrencySymbolPosition symbolPosition, bool spaceBetweenSymbolAndAmount, char decimalSeparator, char thousandsSeparator, int decimalPlaces, string negativePattern = "-{symbol}{amount}")
     {
         var langResult = LanguageCode.Create(languageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
-        if (string.IsNullOrWhiteSpace(currencyCode) ||
-            currencyCode.Trim().Length != 3 ||
-            !currencyCode.Trim().All(char.IsLetter))
-            return Error.Validation(
-                "CurrencyFormat.CurrencyCode.Invalid",
-                $"'{currencyCode}' is not a valid ISO 4217 three-letter currency code.");
+        if (string.IsNullOrWhiteSpace(currencyCode) || currencyCode.Trim().Length != 3 || !currencyCode.Trim().All(char.IsLetter))
+            return Error.Validation("CurrencyFormat.CurrencyCode.Invalid", $"'{currencyCode}' is not a valid ISO 4217 three-letter currency code.");
 
         if (string.IsNullOrWhiteSpace(currencyName))
             return Error.Validation("CurrencyFormat.CurrencyName.Empty", "Currency name must not be empty.");
@@ -108,65 +127,63 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
             return Error.Validation("CurrencyFormat.Symbol.Empty", "Currency symbol must not be empty.");
 
         if (decimalSeparator == thousandsSeparator)
-            return Error.Validation(
-                "CurrencyFormat.Separators.Conflict",
-                "DecimalSeparator and ThousandsSeparator must be different characters.");
+            return Error.Validation("CurrencyFormat.Separators.Conflict", "DecimalSeparator and ThousandsSeparator must be different characters.");
 
         if (decimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "CurrencyFormat.DecimalPlaces.OutOfRange",
-                $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
+            return Error.Validation("CurrencyFormat.DecimalPlaces.OutOfRange", $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
 
         if (string.IsNullOrWhiteSpace(negativePattern) || !negativePattern.Contains("{amount}"))
-            return Error.Validation(
-                "CurrencyFormat.NegativePattern.Invalid",
-                "NegativePattern must contain the {amount} placeholder.");
+            return Error.Validation("CurrencyFormat.NegativePattern.Invalid", "NegativePattern must contain the {amount} placeholder.");
 
         return new CurrencyFormat
         {
-            Id                          = Guard.Against.Default(id, nameof(id)),
-            LanguageCode                = langResult.Value,
-            CurrencyCode                = currencyCode.Trim().ToUpperInvariant(),
-            CurrencyName                = currencyName.Trim(),
-            Symbol                      = symbol.Trim(),
-            SymbolPosition              = symbolPosition,
+            Id = Guard.Against.Default(id, nameof(id)),
+            LanguageCode = langResult.Value,
+            CurrencyCode = currencyCode.Trim().ToUpperInvariant(),
+            CurrencyName = currencyName.Trim(),
+            Symbol = symbol.Trim(),
+            SymbolPosition = symbolPosition,
             SpaceBetweenSymbolAndAmount = spaceBetweenSymbolAndAmount,
-            DecimalSeparator            = decimalSeparator,
-            ThousandsSeparator          = thousandsSeparator,
-            DecimalPlaces               = decimalPlaces,
-            NegativePattern             = negativePattern.Trim(),
+            DecimalSeparator = decimalSeparator,
+            ThousandsSeparator = thousandsSeparator,
+            DecimalPlaces = decimalPlaces,
+            NegativePattern = negativePattern.Trim(),
         };
     }
 
     // ── Business method ───────────────────────────────────────────────────────
-
-    /// <summary>Replaces all formatting properties of this currency format entry.</summary>
+    /// <summary>
+    /// Replaces all formatting properties of this currency format entry.
+    /// </summary>
+    /// <param name="currencyName">The currencyName parameter.</param>
+    /// <param name="symbol">The symbol parameter.</param>
+    /// <param name="symbolPosition">The symbolPosition parameter.</param>
+    /// <param name="spaceBetweenSymbolAndAmount">The spaceBetweenSymbolAndAmount parameter.</param>
+    /// <param name="decimalSeparator">The decimalSeparator parameter.</param>
+    /// <param name="thousandsSeparator">The thousandsSeparator parameter.</param>
+    /// <param name="decimalPlaces">The decimalPlaces parameter.</param>
+    /// <param name="negativePattern">The negativePattern parameter.</param>
+    /// <returns>The operation result.</returns>
     public Result Update(string currencyName, string symbol, CurrencySymbolPosition symbolPosition, bool spaceBetweenSymbolAndAmount,
         char decimalSeparator, char thousandsSeparator, int decimalPlaces, string negativePattern)
     {
         if (decimalSeparator == thousandsSeparator)
-            return Error.Validation(
-                "CurrencyFormat.Separators.Conflict",
-                "DecimalSeparator and ThousandsSeparator must be different characters.");
+            return Error.Validation("CurrencyFormat.Separators.Conflict", "DecimalSeparator and ThousandsSeparator must be different characters.");
 
         if (decimalPlaces is < 0 or > 10)
-            return Error.Validation(
-                "CurrencyFormat.DecimalPlaces.OutOfRange",
-                $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
+            return Error.Validation("CurrencyFormat.DecimalPlaces.OutOfRange", $"DecimalPlaces must be between 0 and 10. Got: {decimalPlaces}.");
 
         if (string.IsNullOrWhiteSpace(negativePattern) || !negativePattern.Contains("{amount}"))
-            return Error.Validation(
-                "CurrencyFormat.NegativePattern.Invalid",
-                "NegativePattern must contain the {amount} placeholder.");
+            return Error.Validation("CurrencyFormat.NegativePattern.Invalid", "NegativePattern must contain the {amount} placeholder.");
 
-        CurrencyName                = Guard.Against.NullOrWhiteSpace(currencyName, nameof(currencyName)).Trim();
-        Symbol                      = Guard.Against.NullOrWhiteSpace(symbol, nameof(symbol)).Trim();
-        SymbolPosition              = symbolPosition;
+        CurrencyName = Guard.Against.NullOrWhiteSpace(currencyName, nameof(currencyName)).Trim();
+        Symbol = Guard.Against.NullOrWhiteSpace(symbol, nameof(symbol)).Trim();
+        SymbolPosition = symbolPosition;
         SpaceBetweenSymbolAndAmount = spaceBetweenSymbolAndAmount;
-        DecimalSeparator            = decimalSeparator;
-        ThousandsSeparator          = thousandsSeparator;
-        DecimalPlaces               = decimalPlaces;
-        NegativePattern             = negativePattern.Trim();
+        DecimalSeparator = decimalSeparator;
+        ThousandsSeparator = thousandsSeparator;
+        DecimalPlaces = decimalPlaces;
+        NegativePattern = negativePattern.Trim();
         return Result.Ok();
     }
 
@@ -179,19 +196,15 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
     public string Format(decimal amount)
     {
         var isNegative = amount < 0;
-        var absStr     = FormatAbsoluteAmount(Math.Abs(amount));
-        var space      = SpaceBetweenSymbolAndAmount ? " " : string.Empty;
+        var absStr = FormatAbsoluteAmount(Math.Abs(amount));
+        var space = SpaceBetweenSymbolAndAmount ? " " : string.Empty;
+        var withSymbol = SymbolPosition == CurrencySymbolPosition.Before ? $"{Symbol}{space}{absStr}" : $"{absStr}{space}{Symbol}";
 
-        var withSymbol = SymbolPosition == CurrencySymbolPosition.Before
-            ? $"{Symbol}{space}{absStr}"
-            : $"{absStr}{space}{Symbol}";
-
-        if (!isNegative) return withSymbol;
+        if (!isNegative)
+            return withSymbol;
 
         return NegativePattern
-            .Replace("{symbol}", SymbolPosition == CurrencySymbolPosition.Before
-                ? $"{Symbol}{space}"
-                : $"{space}{Symbol}")
+            .Replace("{symbol}", SymbolPosition == CurrencySymbolPosition.Before ? $"{Symbol}{space}" : $"{space}{Symbol}")
             .Replace("{amount}", absStr);
     }
 
@@ -199,12 +212,13 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
 
     private string FormatAbsoluteAmount(decimal value)
     {
-        var rounded  = Math.Round(value, DecimalPlaces);
-        var intPart  = (long)Math.Truncate(rounded);
-        var decPart  = rounded - Math.Truncate(rounded);
-        var intStr   = FormatIntegerWithGrouping(intPart);
+        var rounded = Math.Round(value, DecimalPlaces);
+        var intPart = (long)Math.Truncate(rounded);
+        var decPart = rounded - Math.Truncate(rounded);
+        var intStr = FormatIntegerWithGrouping(intPart);
 
-        if (DecimalPlaces == 0) return intStr;
+        if (DecimalPlaces == 0)
+            return intStr;
 
         var decStr = Math.Abs(decPart).ToString($"F{DecimalPlaces}")[2..]; // remove "0."
         return $"{intStr}{DecimalSeparator}{decStr}";
@@ -212,8 +226,9 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
 
     private string FormatIntegerWithGrouping(long value)
     {
-        var str   = Math.Abs(value).ToString();
-        if (str.Length <= 3) return str;
+        var str = Math.Abs(value).ToString();
+        if (str.Length <= 3)
+            return str;
 
         var parts = new List<string>();
         while (str.Length > 3)
@@ -221,7 +236,8 @@ public sealed class CurrencyFormat : AuditableEntityBase<Guid>
             parts.Insert(0, str[^3..]);
             str = str[..^3];
         }
-        if (str.Length > 0) parts.Insert(0, str);
+        if (str.Length > 0)
+            parts.Insert(0, str);
         return string.Join(ThousandsSeparator, parts);
     }
 }

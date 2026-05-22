@@ -1,5 +1,4 @@
 using ATLAS.Kernel.Infrastructure.Primitives;
-using ATLAS.Kernel.i18n.Infrastructure.Persistence;
 using ATLAS.Kernel.i18n.Domain.ValueObjects.Enums;
 
 namespace ATLAS.Kernel.i18n.Infrastructure.Persistence.Seeds;
@@ -17,9 +16,15 @@ namespace ATLAS.Kernel.i18n.Infrastructure.Persistence.Seeds;
 /// Seeding is idempotent — safe to call on every startup.
 /// </para>
 /// </summary>
-public static class I18nSeedData
+public static class I18NSeedData
 {
-    public static async Task SeedAsync(I18nDbContext ctx, CancellationToken ct = default)
+    /// <summary>
+    /// Executes SeedAsync.
+    /// </summary>
+    /// <param name="ctx">The ctx parameter.</param>
+    /// <param name="ct">The ct parameter.</param>
+    /// <returns>The operation result.</returns>
+    public static async Task SeedAsync(I18NDbContext ctx, CancellationToken ct = default)
     {
         await SeedLanguagesAsync(ctx, ct);
         await SeedLocaleConfigurationsAsync(ctx, ct);
@@ -30,7 +35,7 @@ public static class I18nSeedData
 
     // ─── Languages ────────────────────────────────────────────────────────────
 
-    private static async Task SeedLanguagesAsync(I18nDbContext ctx, CancellationToken ct)
+    private static async Task SeedLanguagesAsync(I18NDbContext ctx, CancellationToken ct)
     {
         var languages = new[]
         {
@@ -57,7 +62,7 @@ public static class I18nSeedData
 
     // ─── Locale Configurations ────────────────────────────────────────────────
 
-    private static async Task SeedLocaleConfigurationsAsync(I18nDbContext ctx, CancellationToken ct)
+    private static async Task SeedLocaleConfigurationsAsync(I18NDbContext ctx, CancellationToken ct)
     {
         // (languageCode, dateFormat, shortDateFormat, timeFormat, dateTimeFormat,
         //  firstDayOfWeek, decimalSep, thousandsSep, decPlaces, currDecPlaces)
@@ -75,7 +80,7 @@ public static class I18nSeedData
         foreach (var (lang, date, shortDate, time, dateTime, dow, dec, thou, dp, cdp) in configs)
         {
             if (await ctx.LocaleConfigurations.AnyAsync(
-                lc => lc.LanguageCode == Atlas.SharedKernel.Domain.ValueObjects.LanguageCode.Create(lang).Value, ct))
+                lc => lc.LanguageCode == LanguageCode.Create(lang).Value, ct))
                 continue;
 
             var result = LocaleConfiguration.Create(
@@ -89,29 +94,29 @@ public static class I18nSeedData
 
     // ─── Currency Formats ─────────────────────────────────────────────────────
 
-    private static async Task SeedCurrencyFormatsAsync(I18nDbContext ctx, CancellationToken ct)
+    private static async Task SeedCurrencyFormatsAsync(I18NDbContext ctx, CancellationToken ct)
     {
         // (lang, iso4217, name, symbol, position, space, decSep, thousSep, decPlaces, negativePattern)
         var formats = new[]
         {
             // English
-            ("en-US", "USD", "US Dollar",       "$",  CurrencySymbolPosition.Before, false, '.', ',', 2, "({symbol}{amount})"),
-            ("en-US", "EUR", "Euro",             "€",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
-            ("en-US", "GBP", "British Pound",    "£",  CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
-            ("en-US", "JPY", "Japanese Yen",     "¥",  CurrencySymbolPosition.Before, false, '.', ',', 0, "-{symbol}{amount}"),
+            ("en-US", "USD", "US Dollar", "$", CurrencySymbolPosition.Before, false, '.', ',', 2, "({symbol}{amount})"),
+            ("en-US", "EUR", "Euro", "€", CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
+            ("en-US", "GBP", "British Pound", "£", CurrencySymbolPosition.Before, false, '.', ',', 2, "-{symbol}{amount}"),
+            ("en-US", "JPY", "Japanese Yen", "¥", CurrencySymbolPosition.Before, false, '.', ',', 0, "-{symbol}{amount}"),
             // Spanish
-            ("es-ES", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("es-ES", "EUR", "Euro", "€", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
             ("es-ES", "USD", "Dólar estadounidense", "$", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
-            ("es-ES", "GBP", "Libra esterlina",  "£",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("es-ES", "GBP", "Libra esterlina", "£", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
             // Catalan
-            ("ca-ES", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
-            ("ca-ES", "USD", "Dòlar estadounidenc","$",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("ca-ES", "EUR", "Euro", "€", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
+            ("ca-ES", "USD", "Dòlar estatunidenc", "$", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
             // French
-            ("fr-FR", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', ' ', 2, "-{amount} {symbol}"),
-            ("fr-FR", "USD", "Dollar américain", "$",  CurrencySymbolPosition.After,  true,  ',', ' ', 2, "-{amount} {symbol}"),
+            ("fr-FR", "EUR", "Euro", "€", CurrencySymbolPosition.After, true, ',', ' ', 2, "-{amount} {symbol}"),
+            ("fr-FR", "USD", "Dollar américain", "$", CurrencySymbolPosition.After, true, ',', ' ', 2, "-{amount} {symbol}"),
             // German
-            ("de-DE", "EUR", "Euro",             "€",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
-            ("de-DE", "USD", "US-Dollar",        "$",  CurrencySymbolPosition.After,  true,  ',', '.', 2, "-{amount} {symbol}"),
+            ("de-DE", "EUR", "Euro", "€", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
+            ("de-DE", "USD", "US-Dollar", "$", CurrencySymbolPosition.After, true, ',', '.', 2, "-{amount} {symbol}"),
         };
 
         foreach (var (lang, iso, name, sym, pos, space, dec, thou, dp, neg) in formats)
@@ -132,7 +137,7 @@ public static class I18nSeedData
 
     // ─── Core Translations ────────────────────────────────────────────────────
 
-    private static async Task SeedCoreTranslationsAsync(I18nDbContext ctx, CancellationToken ct)
+    private static async Task SeedCoreTranslationsAsync(I18NDbContext ctx, CancellationToken ct)
     {
         // (module, seq, en text, es text, context)
         var entries = new[]
@@ -159,7 +164,7 @@ public static class I18nSeedData
 
             foreach (var (langCode, text) in new[] { ("en-US", en), ("es-ES", es) })
             {
-                var langResult = Atlas.SharedKernel.Domain.ValueObjects.LanguageCode.Create(langCode);
+                var langResult = LanguageCode.Create(langCode);
                 if (await ctx.Translations.AnyAsync(
                     t => t.Code == TranslationCode.From(code).Value &&
                          t.LanguageCode == langResult.Value, ct))

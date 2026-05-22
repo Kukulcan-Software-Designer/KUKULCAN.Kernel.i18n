@@ -22,6 +22,9 @@ public interface ITranslationLookupService
     /// (which may differ from the requested language when a fallback was applied).
     /// Returns <see cref="Error.NotFound"/> only when no entry exists in any fallback language.
     /// </summary>
-    Task<Result<(string Text, string ActualLanguage, bool IsFallback)>> ResolveAsync(TranslationCode code,
-        LanguageCode requestedLanguage, CancellationToken ct = default);
+    /// <param name="code">The code parameter.</param>
+    /// <param name="requestedLanguage">The requestedLanguage parameter.</param>
+    /// <param name="ct">The ct parameter.</param>
+    /// <returns>The operation result.</returns>
+    Task<Result<(string Text, string ActualLanguage, bool IsFallback)>> ResolveAsync(TranslationCode code, LanguageCode requestedLanguage, CancellationToken ct = default);
 }

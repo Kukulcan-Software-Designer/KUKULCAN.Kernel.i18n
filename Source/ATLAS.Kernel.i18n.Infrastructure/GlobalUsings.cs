@@ -1,5 +1,4 @@
 // ── SharedKernel ──────────────────────────────────────────────────────────────
-global using ATLAS.Kernel.Abstractions.Interfaces.Domain;
 global using ATLAS.Kernel.Abstractions.Interfaces.Infrastructure;
 global using ATLAS.Kernel.Domain.ValueObjects;
 global using ATLAS.Kernel.Database;

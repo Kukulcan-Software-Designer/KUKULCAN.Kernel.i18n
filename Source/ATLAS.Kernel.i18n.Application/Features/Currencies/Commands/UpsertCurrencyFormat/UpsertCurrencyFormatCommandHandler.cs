@@ -16,23 +16,20 @@ namespace ATLAS.Kernel.i18n.Application.Features.Currencies.Commands.UpsertCurre
 /// <param name="languageRepo">The repository used to verify the existence of languages by code.</param>
 /// <param name="unitOfWork">The unit of work used to commit changes to the data store as a single transaction.</param>
 /// <param name="cache">The cache service used to invalidate currency format cache entries after changes.</param>
-public sealed class UpsertCurrencyFormatCommandHandler(ICurrencyFormatRepository repository, ILanguageRepository languageRepo, IUnitOfWork unitOfWork, ICacheService cache) : IRequestHandler<UpsertCurrencyFormatCommand, Result<CurrencyFormatDto>>
+public sealed class UpsertCurrencyFormatCommandHandler(ICurrencyFormatRepository repository, ILanguageRepository languageRepo,
+    IUnitOfWork unitOfWork, ICacheService cache) : IRequestHandler<UpsertCurrencyFormatCommand, Result<CurrencyFormatDto>>
 {
     /// <summary>
-    /// Creates or updates a currency format for the specified language and currency code.
+    /// Handles the request.
     /// </summary>
-    /// <remarks>If a currency format for the specified language and currency does not exist, a new one is
-    /// created. If it exists, the existing format is updated with the provided details. The method also updates the
-    /// cache to reflect the changes.</remarks>
-    /// <param name="request">The command containing the details of the currency format to create or update, including language code, currency
-    /// code, symbol, separators, and formatting options.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-    /// <returns>A result containing the created or updated currency format as a CurrencyFormatDto if successful; otherwise, an
-    /// error result describing the failure.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<CurrencyFormatDto>> Handle(UpsertCurrencyFormatCommand request, CancellationToken cancellationToken)
     {
         var langResult = LanguageCode.Create(request.LanguageCode);
-        if (langResult.IsFailure) return langResult.Error;
+        if (langResult.IsFailure)
+            return langResult.Error;
 
         var lang = langResult.Value;
         var currency = request.CurrencyCode.ToUpperInvariant();
@@ -53,9 +50,8 @@ public sealed class UpsertCurrencyFormatCommandHandler(ICurrencyFormatRepository
                 request.Symbol, symPos, request.SpaceBetweenSymbolAndAmount,
                 request.DecimalSeparator[0], request.ThousandsSeparator[0],
                 request.DecimalPlaces, request.NegativePattern);
-
-            if (createResult.IsFailure) return createResult.Error;
-
+            if (createResult.IsFailure)
+                return createResult.Error;
             await repository.AddAsync(createResult.Value, cancellationToken);
             format = createResult.Value;
         }
@@ -66,17 +62,14 @@ public sealed class UpsertCurrencyFormatCommandHandler(ICurrencyFormatRepository
                 request.SpaceBetweenSymbolAndAmount,
                 request.DecimalSeparator[0], request.ThousandsSeparator[0],
                 request.DecimalPlaces, request.NegativePattern);
-
-            if (updateResult.IsFailure) return updateResult.Error;
-
+            if (updateResult.IsFailure)
+                return updateResult.Error;
             repository.Update(existing);
             format = existing;
         }
-
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        await cache.RemoveAsync(I18nCacheKeys.CurrencyFormat(lang.Value, currency), cancellationToken);
-        await cache.RemoveAsync(I18nCacheKeys.CurrencyFormats(lang.Value), cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.CurrencyFormat(lang.Value, currency), cancellationToken);
+        await cache.RemoveAsync(I18NCacheKeys.CurrencyFormats(lang.Value), cancellationToken);
 
         return GetCurrencyFormatsQueryHandler.MapToDto(format);
     }

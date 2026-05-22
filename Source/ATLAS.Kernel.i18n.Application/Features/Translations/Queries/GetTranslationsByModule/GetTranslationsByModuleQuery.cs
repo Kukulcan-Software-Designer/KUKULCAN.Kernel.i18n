@@ -11,12 +11,14 @@ namespace ATLAS.Kernel.i18n.Application.Features.Translations.Queries.GetTransla
 public record GetTranslationsByModuleQuery(string Module, string LanguageCode) : IRequest<Result<TranslationMapDto>>, ICacheableRequest
 {
     /// <summary>
-    /// 
+    /// Gets the cache key associated with the current language code.
     /// </summary>
-    public string CacheKey => I18nCacheKeys.ModuleTranslations(Module, LanguageCode);
+    /// <remarks>Use this key to store or retrieve language-specific data from a cache. The value is generated
+    /// based on the language code and is unique per language.</remarks>
+    public string CacheKey => I18NCacheKeys.ModuleTranslations(Module, LanguageCode);
 
     /// <summary>
-    /// 
+    /// Gets the duration for which items are cached before expiration, if caching is enabled.
     /// </summary>
-    public TimeSpan? CacheDuration => TimeSpan.FromHours(1);
+    public TimeSpan? CacheDuration => TimeSpan.FromMinutes(1);
 }

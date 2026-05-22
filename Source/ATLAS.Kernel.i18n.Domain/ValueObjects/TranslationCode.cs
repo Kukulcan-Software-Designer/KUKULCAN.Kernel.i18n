@@ -15,28 +15,40 @@ namespace ATLAS.Kernel.i18n.Domain.ValueObjects;
 /// </remarks>
 public sealed class TranslationCode : ValueObject
 {
-    /// <summary>Number of digits in the sequential part.</summary>
+    /// <summary>
+    /// Number of digits in the sequential part.
+    /// </summary>
     public const int NumericLength = 4;
 
-    /// <summary>Minimum letters allowed in the module prefix.</summary>
+    /// <summary>
+    /// Minimum letters allowed in the module prefix.
+    /// </summary>
     public const int MinModuleLength = 2;
 
-    /// <summary>Maximum letters allowed in the module prefix.</summary>
+    /// <summary>
+    /// Maximum letters allowed in the module prefix.
+    /// </summary>
     public const int MaxModuleLength = 5;
 
-    /// <summary>Full code string (e.g. <c>"CRM0001"</c>).</summary>
+    /// <summary>
+    /// Full code string (e.g. <c>"CRM0001"</c>).
+    /// </summary>
     public string Value { get; }
 
-    /// <summary>Uppercase API module prefix (e.g. <c>"CRM"</c>).</summary>
+    /// <summary>
+    /// Uppercase API module prefix (e.g. <c>"CRM"</c>).
+    /// </summary>
     public string Module { get; }
 
-    /// <summary>Numeric sequence within the module (1–9999).</summary>
+    /// <summary>
+    /// Numeric sequence within the module (1–9999).
+    /// </summary>
     public int Sequence { get; }
 
     private TranslationCode(string value, string module, int sequence)
     {
-        Value    = value;
-        Module   = module;
+        Value = value;
+        Module = module;
         Sequence = sequence;
     }
 
@@ -46,43 +58,33 @@ public sealed class TranslationCode : ValueObject
     /// Parses a raw string such as <c>"CRM0001"</c> and returns a
     /// <see cref="Result{TranslationCode}"/> describing success or the validation failure.
     /// </summary>
+    /// <param name="raw">The raw translation code string to parse.</param>
+    /// <returns>A <see cref="Result{TranslationCode}"/> indicating success or failure.</returns>
     public static Result<TranslationCode> From(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
-            return Error.Validation(
-                "TranslationCode.Empty",
-                "Translation code must not be empty.");
+            return Error.Validation("TranslationCode.Empty", "Translation code must not be empty.");
 
         var normalised = raw.Trim().ToUpperInvariant();
 
         if (normalised.Length < MinModuleLength + NumericLength)
-            return Error.Validation(
-                "TranslationCode.TooShort",
-                $"'{raw}' is too short. Expected MODULE (2–5 letters) + 4 digits, e.g. 'CRM0001'.");
+            return Error.Validation("TranslationCode.TooShort", $"'{raw}' is too short. Expected MODULE (2–5 letters) + 4 digits, e.g. 'CRM0001'.");
 
         var numericPart = normalised[^NumericLength..];
-        var modulePart  = normalised[..^NumericLength];
+        var modulePart = normalised[..^NumericLength];
 
         if (!numericPart.All(char.IsDigit))
-            return Error.Validation(
-                "TranslationCode.InvalidNumericPart",
-                $"'{raw}' must end with exactly {NumericLength} digits.");
+            return Error.Validation("TranslationCode.InvalidNumericPart", $"'{raw}' must end with exactly {NumericLength} digits.");
 
         if (modulePart.Length < MinModuleLength || modulePart.Length > MaxModuleLength)
-            return Error.Validation(
-                "TranslationCode.InvalidModuleLength",
-                $"Module prefix '{modulePart}' must be between {MinModuleLength} and {MaxModuleLength} letters.");
+            return Error.Validation("TranslationCode.InvalidModuleLength", $"Module prefix '{modulePart}' must be between {MinModuleLength} and {MaxModuleLength} letters.");
 
         if (!modulePart.All(char.IsLetter))
-            return Error.Validation(
-                "TranslationCode.InvalidModuleChars",
-                $"Module prefix '{modulePart}' must contain only letters.");
+            return Error.Validation("TranslationCode.InvalidModuleChars", $"Module prefix '{modulePart}' must contain only letters.");
 
         var sequence = int.Parse(numericPart);
         if (sequence < 1)
-            return Error.Validation(
-                "TranslationCode.SequenceZero",
-                $"Sequence number in '{raw}' must be ≥ 1 (use 0001–9999).");
+            return Error.Validation("TranslationCode.SequenceZero", $"Sequence number in '{raw}' must be ≥ 1 (use 0001–9999).");
 
         return new TranslationCode(normalised, modulePart, sequence);
     }
@@ -90,6 +92,9 @@ public sealed class TranslationCode : ValueObject
     /// <summary>
     /// Creates a <see cref="TranslationCode"/> from separate module and sequence components.
     /// </summary>
+    /// <param name="module">The module prefix.</param>
+    /// <param name="sequence">The sequence number.</param>
+    /// <returns>A <see cref="Result{TranslationCode}"/> indicating success or failure.</returns>
     public static Result<TranslationCode> Create(string module, int sequence)
     {
         if (string.IsNullOrWhiteSpace(module))
@@ -98,34 +103,37 @@ public sealed class TranslationCode : ValueObject
         var normalised = module.Trim().ToUpperInvariant();
 
         if (normalised.Length < MinModuleLength || normalised.Length > MaxModuleLength)
-            return Error.Validation(
-                "TranslationCode.InvalidModuleLength",
-                $"Module prefix '{module}' must be between {MinModuleLength} and {MaxModuleLength} letters.");
+            return Error.Validation("TranslationCode.InvalidModuleLength", $"Module prefix '{module}' must be between {MinModuleLength} and {MaxModuleLength} letters.");
 
         if (!normalised.All(char.IsLetter))
-            return Error.Validation(
-                "TranslationCode.InvalidModuleChars",
-                $"Module prefix '{module}' must contain only letters.");
+            return Error.Validation("TranslationCode.InvalidModuleChars", $"Module prefix '{module}' must contain only letters.");
 
         if (sequence is < 1 or > 9999)
-            return Error.Validation(
-                "TranslationCode.SequenceOutOfRange",
-                $"Sequence must be between 1 and 9999. Got: {sequence}.");
+            return Error.Validation("TranslationCode.SequenceOutOfRange", $"Sequence must be between 1 and 9999. Got: {sequence}.");
 
         return new TranslationCode($"{normalised}{sequence:D4}", normalised, sequence);
     }
 
     // ── ValueObject ──────────────────────────────────────────────────────────
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Executes GetEqualityComponents.
+    /// </summary>
+    /// <returns>The operation result.</returns>
     protected override IEnumerable<object?> GetEqualityComponents()
     {
         yield return Value;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Returns the string representation of this instance.
+    /// </summary>
+    /// <returns>The operation result.</returns>
     public override string ToString() => Value;
 
-    /// <summary>Implicitly converts to its string representation.</summary>
+    /// <summary>
+    /// Implicitly converts a <see cref="TranslationCode"/> to its string representation.
+    /// </summary>
+    /// <param name="code">The <see cref="TranslationCode"/> to convert.</param>
     public static implicit operator string(TranslationCode code) => code.Value;
 }

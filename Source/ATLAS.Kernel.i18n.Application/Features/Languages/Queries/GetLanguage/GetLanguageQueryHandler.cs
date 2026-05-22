@@ -15,15 +15,15 @@ namespace ATLAS.Kernel.i18n.Application.Features.Languages.Queries.GetLanguage;
 /// Initializes a new instance of the GetLanguageQueryHandler class with the specified language repository.
 /// </remarks>
 /// <param name="repository">The repository used to access language data. Cannot be null.</param>
-public sealed class GetLanguageQueryHandler(ILanguageRepository repository) : IRequestHandler<GetLanguageQuery, Result<LanguageDto>>
+public sealed class GetLanguageQueryHandler(ILanguageRepository repository)
+        : IRequestHandler<GetLanguageQuery, Result<LanguageDto>>
 {
     /// <summary>
-    /// Handles a request to retrieve a language by its code.
+    /// Handles the request.
     /// </summary>
-    /// <param name="request">The query containing the code of the language to retrieve.</param>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a Result object with the language
-    /// data as a LanguageDto if found; otherwise, an error indicating that the language was not found.</returns>
+    /// <param name="request">The request parameter.</param>
+    /// <param name="cancellationToken">The cancellationToken parameter.</param>
+    /// <returns>The operation result.</returns>
     public async Task<Result<LanguageDto>> Handle(GetLanguageQuery request, CancellationToken cancellationToken)
     {
         var language = await repository.GetByCodeAsync(request.Code, cancellationToken);
