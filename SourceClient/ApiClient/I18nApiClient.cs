@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ATLAS.Kernel.i18n.Client.Models;
+using KUKULCAN.Kernel.i18n.Client.Models;
 
-namespace ATLAS.Kernel.i18n.Client.ApiClient;
+namespace KUKULCAN.Kernel.i18n.Client.ApiClient;
 
 /// <summary>
 /// Typed HTTP client for the ATLAS.Kernel.i18n REST API.

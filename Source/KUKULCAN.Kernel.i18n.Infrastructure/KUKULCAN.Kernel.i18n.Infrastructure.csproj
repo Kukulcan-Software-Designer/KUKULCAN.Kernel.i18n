@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>KUKULCAN.Kernel.i18n.Infrastructure</RootNamespace>
+    <AssemblyName>KUKULCAN.Kernel.i18n.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KUKULCAN.Kernel.i18n.Application\KUKULCAN.Kernel.i18n.Application.csproj" />
+    <!--
+      KUKULCAN.Kernel.Database provides:
+        - KukulcanDbContextBase (EF Core base with all interceptors wired)
+        - AddKukulcanDbContext<T>() DI extension (registers DbContext + IUnitOfWork + SlowQueryInterceptor)
+        - UnitOfWork<TContext>
+        - AuditSaveChangesInterceptor, SoftDeleteInterceptor, DomainEventDispatchInterceptor,
+          ImmutableEntityInterceptor, SlowQueryInterceptor
+        - ModelBuilderExtensions (ApplySoftDeleteFilter, ApplyTenantFilter)
+        - KukulcanDatabaseOptions, DatabaseProvider
+    -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+	  Database Provider: PostgreSQL is the default database for applications in Kukulcan Software Designer.
+      This package is intentionally referenced only here (per-module), never in Kernel.
+    -->
+    <PackageReference Include="KUKULCAN.Kernel.Database" Version="0.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.10" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+
+    <!-- Distributed cache — Redis via StackExchange -->
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.*" />
+
+    <!-- JSON for cache serialisation -->
+  </ItemGroup>
+
+</Project>

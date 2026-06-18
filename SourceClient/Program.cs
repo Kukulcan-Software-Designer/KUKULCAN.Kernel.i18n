@@ -1,6 +1,6 @@
-using ATLAS.Kernel.i18n.Client.ApiClient;
-using ATLAS.Kernel.i18n.Client.Configuration;
-using ATLAS.Kernel.i18n.Client.UI;
+using KUKULCAN.Kernel.i18n.Client.ApiClient;
+using KUKULCAN.Kernel.i18n.Client.Configuration;
+using KUKULCAN.Kernel.i18n.Client.UI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
