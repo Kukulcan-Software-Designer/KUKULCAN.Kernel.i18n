@@ -1,4 +1,4 @@
-namespace ATLAS.Kernel.i18n.Client.Configuration;
+namespace KUKULCAN.Kernel.i18n.Client.Configuration;
 
 // ── API connection ────────────────────────────────────────────────────────────
 public sealed class ApiSettings

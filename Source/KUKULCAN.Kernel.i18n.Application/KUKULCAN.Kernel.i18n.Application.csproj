@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>KUKULCAN.Kernel.i18n.Application</RootNamespace>
+    <AssemblyName>KUKULCAN.Kernel.i18n.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KUKULCAN.Kernel.i18n.Domain\KUKULCAN.Kernel.i18n.Domain.csproj" />
+    <!--
+      KUKULCAN.Kernel.Infrastructure provides:
+        - ValidationBehavior, LoggingBehavior, CachingBehavior, TenantBehavior (MediatR)
+        - PagedResult<T>, PaginationRequest, SortOrder
+        - SequentialGuid, collection/string/datetime extensions
+      KUKULCAN.Kernel.Domain provides Result<T>, Error, ValueObject, Guard, etc.
+      KUKULCAN.Kernel.Abstractions provides ICacheService, IUnitOfWork, ICurrentUser, etc.
+    -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FluentValidation for command/query validators -->
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <!-- MediatR is already transitively available via Kernel.Infrastructure -->
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ATLAS.Kernel.i18n.Client.Models;
+namespace KUKULCAN.Kernel.i18n.Client.Models;
 
 // ── Languages ─────────────────────────────────────────────────────────────────
 public record LanguageDto(
