@@ -1,0 +1,32 @@
+<Project>
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <GeneratePackageOnBuild Condition="'$(Configuration)'=='Release'">true</GeneratePackageOnBuild>
+        <SolutionDir>$(MSBuildThisFileDirectory)</SolutionDir>
+        <PackageId>$(AssemblyName)</PackageId>
+        <Version>$(VersionPrefix)</Version>
+        <Authors>Kukulcakn Software Designer</Authors>
+        <Company>Kukulcakn Software Designer</Company>
+        <Copyright>GPL 2026 Kukulcakn Software Designer</Copyright>
+        <PackageProjectUrl>https://www.kukulcan.org.mx/Software/KernelInternationalization</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageOutputPath>$(SolutionDir)NuGet\</PackageOutputPath>
+        <PackageTags>kukulcan;ddd;kernel;database;efcore;infrastructure</PackageTags>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+        <RepositoryUrl>https://github.com/Kukulcan-Software-Designer/KUKULCAN.Kernel.i18n</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <Description>
+		Kukulcan Software Designer's application internationalization microservice.
+		It offers:
+
+- Translations: search by unique code (`MODULE + NNNN`) and language, with an option for automatic translation to English.
+- Regional settings: date and time formats, decimal and thousands separators.
+- Currency formats: symbol, position, spacing, decimals, and negative format.
+        </Description>
+    </PropertyGroup>
+
+	<ItemGroup Condition="'$(Configuration)' == 'Release'">
+		<None Include="$(SolutionDir)LICENSE" Pack="true" PackagePath="\" />
+		<None Include="$(SolutionDir)README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+</Project>

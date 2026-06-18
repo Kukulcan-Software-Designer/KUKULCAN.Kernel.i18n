@@ -1,0 +1,45 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>KUKULCAN.Kernel.i18n.Application.UnitTests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageReference Include="Moq" Version="4.*" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\KUKULCAN.Kernel.i18n.API\KUKULCAN.Kernel.i18n.API.csproj" />
+    <ProjectReference Include="..\..\Source\KUKULCAN.Kernel.i18n.Application\KUKULCAN.Kernel.i18n.Application.csproj" />
+    <ProjectReference Include="..\..\Source\KUKULCAN.Kernel.i18n.Domain\KUKULCAN.Kernel.i18n.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\Currencies\Handlers\" />
+    <Folder Include="Features\Currencies\Validators\" />
+    <Folder Include="Features\Locales\Handlers\" />
+    <Folder Include="Features\Locales\Validators\" />
+    <Folder Include="Handlers\" />
+    <Folder Include="Validators\" />
+  </ItemGroup>
+
+</Project>

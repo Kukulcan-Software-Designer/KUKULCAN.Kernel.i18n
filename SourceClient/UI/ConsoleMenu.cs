@@ -1,10 +1,10 @@
-using ATLAS.Kernel.i18n.Client.ApiClient;
-using ATLAS.Kernel.i18n.Client.Configuration;
-using ATLAS.Kernel.i18n.Client.Models;
-using Spectre.Console;
 using System.Text.Json;
+using KUKULCAN.Kernel.i18n.Client.ApiClient;
+using KUKULCAN.Kernel.i18n.Client.Configuration;
+using KUKULCAN.Kernel.i18n.Client.Models;
+using Spectre.Console;
 
-namespace ATLAS.Kernel.i18n.Client.UI;
+namespace KUKULCAN.Kernel.i18n.Client.UI;
 
 /// <summary>
 /// Drives the interactive console. Renders menus via Spectre.Console and
