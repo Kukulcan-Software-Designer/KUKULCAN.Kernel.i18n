@@ -1,3 +1,4 @@
+# DEPRECATED
 # KUKULCAN.Kernel.i18n — Internationalization Service
 
 **KUKULCAN.Kernel.i18n** platform internationalization microservice. Provides:
